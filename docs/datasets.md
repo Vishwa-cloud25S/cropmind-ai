@@ -1,6 +1,6 @@
 # Datasets — Research & Provenance Register
 
-**Register v0.4 — last verified 2026-08-08.** Owner: founder.
+**Register v0.5 — last verified 2026-08-08.** Owner: founder.
 
 **Gate rule (NFR-09):** no dataset enters the training pipeline unless it has a completed row
 below with an APPROVED decision, its provenance (`source_url`, version/date, image count,
@@ -41,6 +41,17 @@ table. Datasets are never committed to git and never silently combined: every im
 - **2026-08-08 — PlantDoc:** LICENSE.txt (CC BY 4.0) fetched verbatim; class folders (28) read from
   GitHub trees API; 17 folders map to V1 disease_ids; no healthy-Potato folder (recorded limitation).
 - **2026-08-08 — IP102:** academic-use-only terms re-confirmed on the official repo; DEFERRED/excluded.
+- **2026-08-08 — Class-map alias gap (FOUND + FIXED by the coverage gate):** the first real
+  import of the without-augmentation archive failed structure verification at 17/21 mappable
+  folders. Root cause: four in-scope folders use a third naming variant the class map lacked
+  aliases for (`Crop___Condition` convention incl. a hyphen in "Two-spotted" and doubled crop
+  prefixes: `Corn___Cercospora_leaf_spot Gray_leaf_spot`, `Tomato___Spider_mites Two-spotted_spider_mite`,
+  `Tomato___Tomato_Yellow_Leaf_Curl_Virus`, `Tomato___Tomato_mosaic_virus` — verbatim dirnames).
+  No taxonomy, scope, or label change: the 21-class scope stayed identical; aliases were added
+  from observed names only, and the gate was upgraded to enforce FULL documented coverage
+  (floor = 21) plus a hard failure on unmapped V1-crop-prefixed folders (`require_full_class_coverage`
+  for the training source; eval datasets like PlantDoc keep documented partial coverage as
+  recorded warnings — see `ml/data/registry.py`, `ml/data/verify.py`).
 
 ## Acquisition & provenance procedure
 
@@ -133,8 +144,28 @@ train image.
 
 - **Crops:** Tomato, Potato, Corn (maize), Apple — present in both datasets, enabling in-domain
   training (PlantVillage) *and* out-of-domain honesty testing (PlantDoc field imagery).
-- **Conditions:** per `ml/configs/taxonomy.yaml` (21 classes). Configuration-driven; a class only
-  flips `supported_by_model: true` after an evaluation report exists.
+- **Conditions (21 classes):** configuration-driven per `ml/configs/taxonomy.yaml`; a class only
+  flips `supported_by_model: true` after an evaluation report exists. Folder-name variants across
+  mirrors/extraction formats are normalized by `ml/data/classmap.py`; aliases are added only
+  from verbatim-observed dirnames — never guessed, never a relabeling.
+
+| Crop | V1 classes (disease_ids) |
+|---|---|
+| Tomato (10) | bacterial_spot, early_blight, late_blight, leaf_mold, septoria_leaf_spot, spider_mites, target_spot, yellow_leaf_curl_virus, mosaic_virus, healthy |
+| Potato (3) | early_blight, late_blight, healthy |
+| Corn (4) | cercospora_gray_leaf_spot, common_rust, northern_leaf_blight, healthy |
+| Apple (4) | scab, black_rot, cedar_rust, healthy |
+
+- **Coverage gate (import-time):** the training source must map **all 21** documented classes
+  (`expected_min_mapped_class_dirs = 21` + full-coverage check in `ml/data/verify.py`). An
+  unmapped folder whose name matches a V1 crop is treated as a **class-map gap and blocks
+  training** — partial coverage cannot silently pass while the API advertises the full taxonomy.
+- **Out-of-scope data is retained, never deleted:** PlantVillage's 17 other-crop folders
+  (blueberry, cherry, grape, orange, peach, bell-pepper, raspberry, soybean, squash, strawberry)
+  stay in the raw store, are listed in provenance `structure_warnings`, and appear in split
+  manifests as skipped. `Background_without_leaves` is excluded by policy. None of these are
+  claimed as supported anywhere in the product, and extending scope is a documented-register
+  decision, not a code default.
 
 ## Known limitations carried into the data card (Phase 3+)
 
