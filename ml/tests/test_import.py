@@ -11,11 +11,15 @@ from ml.data.download import DownloadError, LicenseNotAcceptedError
 
 @pytest.fixture()
 def lax_plantvillage_threshold(monkeypatch):
-    """Toy fixtures have 2 mapped class dirs; the real gate wants >= 20."""
+    """Toy fixtures have 2 mapped class dirs; the real gate wants full 21-class coverage.
+
+    The floor AND the full-coverage check are disabled here — they target the real
+    dataset; both are exercised against a synthetic 21-folder scope in dedicated tests.
+    """
     monkeypatch.setitem(
         registry.REGISTRY,
         "plantvillage",
-        replace(registry.PLANTVILLAGE, expected_min_mapped_class_dirs=2),
+        replace(registry.PLANTVILLAGE, expected_min_mapped_class_dirs=2, require_full_class_coverage=False),
     )
 
 
@@ -117,3 +121,68 @@ def test_manual_guidance_message_contents():
     assert "https://data.mendeley.com/datasets/tywbtsjrjv/1" in message
     assert "import --dataset plantvillage" in message
     assert "unofficial scraped copies" in message
+
+
+def _scope_root(tmp_path, names):
+    """Synthetic class-folder root (verify only checks file presence + suffix)."""
+    root = tmp_path / "images"
+    for name in names:
+        folder = root / name
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "x.jpg").write_bytes(b"placeholder")
+    return root
+
+
+def test_structure_gate_full_v1_scope_passes_and_records_skips(tmp_path):
+    from ml.tests.test_classmap import WITHOUT_AUG_DIRNAMES
+
+    root = _scope_root(
+        tmp_path,
+        [*WITHOUT_AUG_DIRNAMES, "Strawberry___Leaf_scorch", "Blueberry___healthy", "Background_without_leaves"],
+    )
+    problems, warnings = verify.verify_dataset_structure(root, "plantvillage")
+    assert problems == []
+    text = " ".join(warnings)
+    assert "Strawberry___Leaf_scorch" in text  # out-of-scope: recorded, skipped — never a problem
+    assert "Background_without_leaves" in text  # policy exclusion recorded
+    assert "class map gap" not in text
+
+
+def test_structure_gate_reports_missing_coverage_and_v1_like_gap(tmp_path):
+    from ml.tests.test_classmap import WITHOUT_AUG_DIRNAMES
+
+    names = [n for n in WITHOUT_AUG_DIRNAMES if n != "Tomato___healthy"]
+    root = _scope_root(tmp_path, [*names, "Tomato___Brand_New_Blight"])
+    problems, _ = verify.verify_dataset_structure(root, "plantvillage")
+    joined = " ".join(problems)
+    assert "tomato_healthy" in joined  # documented class with no folder is named explicitly
+    assert "Tomato___Brand_New_Blight" in joined  # V1-crop-prefixed unmapped folder = class map gap
+    assert "silent class loss" in joined
+
+
+def test_plantdoc_partial_coverage_v1_like_folder_is_warning_not_problem(tmp_path, monkeypatch):
+    monkeypatch.setitem(
+        registry.REGISTRY,
+        "plantdoc",
+        replace(registry.PLANTDOC, expected_min_mapped_class_dirs=2),
+    )
+    root = _scope_root(tmp_path, ["Tomato Early blight leaf", "Apple leaf", "Corn leaf"])
+    problems, warnings = verify.verify_dataset_structure(root, "plantdoc")
+    assert problems == []  # eval dataset: documented partial coverage must never hard-fail
+    assert any("Corn leaf" in w and "recorded, skipped" in w for w in warnings)
+
+
+def test_import_is_idempotent(tmp_path, toy_zip, lax_plantvillage_threshold):
+    """Rerunning the identical import reuses the extraction, rewrites provenance cleanly,
+    recomputes the same sha256 — nothing is duplicated, corrupted, or re-extracted."""
+    first = download.import_dataset("plantvillage", tmp_path / "raw", archive=toy_zip, accept_license=True)
+    prov1 = _prov(tmp_path)
+    second = download.import_dataset("plantvillage", tmp_path / "raw", archive=toy_zip, accept_license=True)
+    prov2 = _prov(tmp_path)
+
+    assert second == first
+    assert prov1["acquisition"]["archive_sha256"] == prov2["acquisition"]["archive_sha256"]
+    assert prov1["class_dirs"] == prov2["class_dirs"]
+    assert prov1["image_count"] == prov2["image_count"] == 5
+    extracted = tmp_path / "raw" / "plantvillage" / "extracted"
+    assert len(list(extracted.rglob("*.jpg"))) == 5  # extraction reused, not duplicated

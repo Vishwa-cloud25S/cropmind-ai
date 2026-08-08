@@ -52,10 +52,20 @@ PLANTVILLAGE_MAP: dict[str, object] = {
     "tomato_mosaic_virus": "tomato_mosaic_virus",
     "tomato_yellow_leaf_curl_virus": "tomato_yellow_leaf_curl_virus",
     "tomato_healthy": "tomato_healthy",
+    # WITHOUT-augmentation archive naming — a third `Crop___Condition` variant, verbatim
+    # dirnames from the real extraction (2026-08-08): "Corn___Cercospora_leaf_spot Gray_leaf_spot",
+    # "Tomato___Spider_mites Two-spotted_spider_mite" (hyphen), and doubled crop prefixes
+    # ("Tomato___Tomato_mosaic_virus", "Tomato___Tomato_Yellow_Leaf_Curl_Virus"). Missing aliases
+    # here silently dropped 4 of the 21 documented classes — caught by the coverage gate.
+    "corn_cercospora_leaf_spot_gray_leaf_spot": "corn_cercospora_gray_leaf_spot",
+    "tomato_spider_mites_twospotted_spider_mite": "tomato_spider_mites",
+    "tomato_tomato_yellow_leaf_curl_virus": "tomato_yellow_leaf_curl_virus",
+    "tomato_tomato_mosaic_virus": "tomato_mosaic_virus",
 }
 
 # Verbatim PlantDoc train/ class folders (GitHub API, verified 2026-08-08).
-# 28 folders; only the 19 that belong to V1 crops map — the rest (other crops)
+# 28 folders; only the 17 that belong to V1 crops map — the rest (other crops and
+# crop folders PlantDoc lacks labels for, e.g. no healthy-Potato folder in train/)
 # are intentionally unmapped and recorded as skipped, per docs/datasets.md scope.
 PLANTDOC_MAP: dict[str, object] = {
     "apple_scab_leaf": "apple_scab",

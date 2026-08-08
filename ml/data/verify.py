@@ -41,8 +41,23 @@ def verify_provenance(provenance_path: Path) -> list[str]:
     return problems
 
 
+def _coverage_context(dataset: str) -> tuple[set[str], set[str]]:
+    """(documented disease_ids, V1 crop prefixes) derived from the class map itself."""
+    targets = {t for t in classmap.MAPS.get(dataset, {}).values() if t is not classmap.EXCLUDE}
+    prefixes = {str(t).split("_", 1)[0] for t in targets}
+    return targets, prefixes
+
+
 def verify_dataset_structure(images_root: Path, dataset: str) -> tuple[list[str], list[str]]:
     """Structural gate before a dataset feeds the pipeline (spec §10 of the fix).
+
+    Three independent checks beyond existence:
+    1. floor — enough mappable folders to rule out "pointed at the wrong root";
+    2. coverage (require_full_class_coverage=True datasets, i.e. the training source) —
+       EVERY documented class must have a folder; partial coverage = silent class loss;
+    3. V1-crop-prefix — an unmapped folder named like a V1 crop is a class-map GAP
+       (missing alias), not out-of-scope data: fatal for training sources, recorded
+       warning for documented partial-coverage (eval) datasets.
 
     Returns (problems, warnings). Problems block; warnings are recorded/reported only.
     """
@@ -57,7 +72,9 @@ def verify_dataset_structure(images_root: Path, dataset: str) -> tuple[list[str]
     if not class_dirs:
         return [f"no class folders found under {root}"], warnings
 
+    expected_ids, crop_prefixes = _coverage_context(dataset)
     mapped_ok, unmapped, excluded = [], [], []
+    covered_ids: set[str] = set()
     for class_dir in class_dirs:
         mapping = classmap.map_class_dir(dataset, class_dir.name)
         if mapping is classmap.EXCLUDE:
@@ -66,6 +83,20 @@ def verify_dataset_structure(images_root: Path, dataset: str) -> tuple[list[str]
             unmapped.append(class_dir.name)
         else:
             mapped_ok.append(class_dir)
+            covered_ids.add(str(mapping))
+
+    v1_like_unmapped = sorted(
+        name for name in unmapped if classmap.normalize(name).split("_", 1)[0] in crop_prefixes
+    )
+    if v1_like_unmapped:
+        detail = (
+            "V1-crop class folders with no mapping key (class map gap — extend the aliases in "
+            f"ml/data/classmap.py; these are NOT out-of-scope folders): {v1_like_unmapped}"
+        )
+        if spec.require_full_class_coverage:
+            problems.append(detail + " — refusing to train with silent class loss.")
+        else:
+            warnings.append(detail + " — recorded, skipped (documented partial coverage).")
 
     if len(mapped_ok) < spec.expected_min_mapped_class_dirs:
         problems.append(
@@ -74,6 +105,13 @@ def verify_dataset_structure(images_root: Path, dataset: str) -> tuple[list[str]
             f"Check that you are pointing at the class-folder root of the correct dataset "
             f"(e.g. the without-augmentation folder for PlantVillage)."
         )
+    if spec.require_full_class_coverage:
+        missing = sorted(expected_ids - covered_ids)
+        if missing:
+            problems.append(
+                f"coverage incomplete for dataset {dataset!r}: documented classes with no mapped folder: "
+                f"{missing} (extend ml/data/classmap.py aliases or check you pointed at the full extraction)"
+            )
     for class_dir in mapped_ok:
         has_image = any(
             p.is_file() and p.suffix.lower() in split_mod.IMAGE_EXTS
@@ -81,8 +119,9 @@ def verify_dataset_structure(images_root: Path, dataset: str) -> tuple[list[str]
         )
         if not has_image:
             problems.append(f"mappable class folder contains no images: {class_dir.name}")
-    if unmapped:
-        warnings.append(f"class folders out of V1 scope (recorded, skipped): {sorted(unmapped)}")
+    non_v1_unmapped = sorted(set(unmapped) - set(v1_like_unmapped))
+    if non_v1_unmapped:
+        warnings.append(f"class folders outside the documented V1 scope (recorded, skipped): {non_v1_unmapped}")
     if excluded:
         warnings.append(f"class folders explicitly excluded by policy: {sorted(excluded)}")
     return problems, warnings

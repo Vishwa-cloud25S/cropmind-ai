@@ -39,6 +39,11 @@ class DatasetSpec:
     programmatic_status: str = ProgrammaticStatus.AUTO_OK
     status_note: str = ""
     expected_min_mapped_class_dirs: int = 2
+    # Training-source datasets must cover their FULL documented class scope (every
+    # disease_id the class map declares): partial coverage = silent class loss while the
+    # API advertises the complete taxonomy. Eval datasets (documented partial coverage)
+    # keep unmapped V1-crop folders as recorded warnings instead of hard failures.
+    require_full_class_coverage: bool = False
     notes: str = ""
 
 
@@ -82,7 +87,11 @@ PLANTVILLAGE = DatasetSpec(
         "(observed 2026-08-08 on Windows and Linux). We do not bypass access controls "
         "(no UA spoofing / session tricks); the manual import route is the documented path."
     ),
-    expected_min_mapped_class_dirs=20,
+    # = documented V1 scope (ml/configs/taxonomy.yaml: 21 condition classes, docs/datasets.md
+    # §V1 model scope). Do NOT lower this without a documented scope change: the floor is the
+    # coverage gate that caught the classmap alias gap on 2026-08-08 (17/21 folders mapped).
+    expected_min_mapped_class_dirs=21,
+    require_full_class_coverage=True,
     notes=(
         "61,486 images across 39 classes per dataset description (38 disease/healthy classes "
         "+ Background_without_leaves, excluded by policy). Augmentation variants exist in the "
@@ -112,7 +121,11 @@ PLANTDOC = DatasetSpec(
     ),
     programmatic_status=ProgrammaticStatus.AUTO_OK,
     status_note="GitHub archive endpoint verified live 2026-08-08.",
-    expected_min_mapped_class_dirs=15,
+    # = documented partial coverage: exactly 17 of the 28 folders map to V1 disease_ids
+    # (see notes). Eval-only dataset — unmapped V1-crop folders (e.g. no healthy-Potato
+    # folder in train/) are recorded warnings, never silent training loss.
+    expected_min_mapped_class_dirs=17,
+    require_full_class_coverage=False,
     notes=(
         "train/ + test/ trees, 28 class folders (verified via GitHub API 2026-08-08); "
         "17 folders map to V1 disease_ids. No healthy-Potato folder in train/ (recorded limitation). "
