@@ -40,6 +40,15 @@ table. Datasets are never committed to git and never silently combined: every im
   license file**, so it is not relied on for the product pipeline.
 - **2026-08-08 — PlantDoc:** LICENSE.txt (CC BY 4.0) fetched verbatim; class folders (28) read from
   GitHub trees API; 17 folders map to V1 disease_ids; no healthy-Potato folder (recorded limitation).
+- **2026-08-08 — PlantDoc Windows extraction failure (FOUND + FIXED):** the first real PlantDoc pull
+  downloaded the 832 MB archive fine but crashed at extraction. Root causes: (1) the
+  `ZipFile.extractall(filter="data")` branch was dead code — `filter` belongs to tarfile's PEP 706,
+  no CPython zipfile has ever accepted it (signature verified on 3.13.14), so every call fell into
+  the unfiltered fallback; (2) the fallback is not MAX_PATH-aware and hit the Win32 260-char limit on
+  a 310-char auto-generated member name (this zip ships >200-char filenames). Fix: `extractall` is
+  never called — `safe_extract` is a manual, deterministic, zip-slip-validated, MAX_PATH-aware
+  (`ml/data/winpath.py`) member walk with an `.extracted-ok` completion marker (partial extractions
+  self-heal; no false reuse). Cached archive reused — no re-download.
 - **2026-08-08 — IP102:** academic-use-only terms re-confirmed on the official repo; DEFERRED/excluded.
 - **2026-08-08 — Class-map alias gap (FOUND + FIXED by the coverage gate):** the first real
   import of the without-augmentation archive failed structure verification at 17/21 mappable
