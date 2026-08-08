@@ -1,4 +1,5 @@
 import json
+import logging
 from dataclasses import replace
 
 import pytest
@@ -151,18 +152,20 @@ def test_extraction_root_marker_idempotency_and_self_heal(tmp_path):
     dataset_dir = tmp_path / "plantdoc"
     dataset_dir.mkdir()
 
-    first = download._extraction_root(dataset_dir, archive)
+    first, renames = download._extraction_root(dataset_dir, archive)
+    assert renames == []  # clean names → nothing renamed
     assert (first / download.EXTRACTION_MARKER).exists()
     snapshot = {p.name: p.read_bytes() for p in first.rglob("*.jpg")}
 
-    second = download._extraction_root(dataset_dir, archive)  # complete tree → reused untouched
+    second, reuse_renames = download._extraction_root(dataset_dir, archive)  # complete tree → reused
+    assert reuse_renames == []
     assert second == first
     assert {p.name: p.read_bytes() for p in second.rglob("*.jpg")} == snapshot
 
     # Partial/crashed tree (file removed, marker removed) must self-heal, not be "reused".
     (first / "k" / "f2.jpg").unlink()
     (first / download.EXTRACTION_MARKER).unlink()
-    healed = download._extraction_root(dataset_dir, archive)
+    healed, _ = download._extraction_root(dataset_dir, archive)
     assert (healed / "k" / "f2.jpg").read_bytes() == b"2"
     assert (healed / download.EXTRACTION_MARKER).exists()
 
@@ -174,3 +177,84 @@ def test_safe_extract_deterministic_repeated_bytes(tmp_path):
     download.safe_extract(archive, tmp_path / "two")
     for name in members:
         assert (tmp_path / "one" / name).read_bytes() == (tmp_path / "two" / name).read_bytes()
+
+
+# --- Filesystem-safety sanitization (Windows-illegal member names, PlantDoc reality) ---
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("IMG_1629.JPG?1507122477.jpg", "IMG_1629.JPG_1507122477.jpg"),  # real PlantDoc member
+        ("Bell_pepper leaf", "Bell_pepper leaf"),  # inner spaces are legal — untouched
+        ("a<b>z", "a_b_z"),
+        ('x|y"z', "x_y_z"),
+        ("trailing.", "trailing"),
+        ("trailing  ", "trailing"),
+        ("...", "_"),
+        ("CON", "_CON"),
+        ("con.txt", "_con.txt"),
+        ("lpt3.jpg", "_lpt3.jpg"),
+        ("normal_name-1.JPG", "normal_name-1.JPG"),  # identity for already-safe names
+    ],
+)
+def test_sanitize_segment_deterministic(raw: str, expected: str) -> None:
+    assert download.sanitize_segment(raw) == expected
+    assert download.sanitize_segment(expected) == expected  # idempotent — replaying is a no-op
+
+
+def test_safe_extract_sanitizes_windows_illegal_names(tmp_path, caplog):
+    """The real Gate C failure: PlantDoc ships members whose names contain '?' — they must
+    land renamed (deterministically, identically on every OS), recorded, and marked."""
+    members = {
+        "PlantDoc-Dataset-master/test/Bell_pepper leaf/IMG_1629.JPG?1507122477.jpg": b"illegal-name-bytes",
+        "PlantDoc-Dataset-master/test/Bell_pepper leaf/normal.JPG": b"normal",
+    }
+    archive = _make_zip(tmp_path / "plantdoc.zip", members)
+    dest = tmp_path / "out"
+    with caplog.at_level(logging.WARNING, logger="cropmind.ml.download"):
+        renames = download.safe_extract(archive, dest)
+
+    sanitized = dest / "PlantDoc-Dataset-master" / "test" / "Bell_pepper leaf" / "IMG_1629.JPG_1507122477.jpg"
+    assert sanitized.read_bytes() == b"illegal-name-bytes"
+    assert (dest / "PlantDoc-Dataset-master" / "test" / "Bell_pepper leaf" / "normal.JPG").exists()
+    assert (dest / download.EXTRACTION_MARKER).exists()
+    assert renames == [
+        (
+            "PlantDoc-Dataset-master/test/Bell_pepper leaf/IMG_1629.JPG?1507122477.jpg",
+            "PlantDoc-Dataset-master/test/Bell_pepper leaf/IMG_1629.JPG_1507122477.jpg",
+        )
+    ]
+    assert any("renamed for filesystem safety" in r.getMessage() for r in caplog.records)
+    # Deterministic: a second destination produces the identical layout.
+    renames_two = download.safe_extract(archive, tmp_path / "out2")
+    assert renames_two == renames
+    assert (tmp_path / "out2" / "PlantDoc-Dataset-master" / "test" / "Bell_pepper leaf" / "IMG_1629.JPG_1507122477.jpg").read_bytes() == b"illegal-name-bytes"
+
+
+def test_safe_extract_sanitization_collision_fails_loudly(tmp_path):
+    """Two DISTINCT members mapping to one target: error, never a silent overwrite."""
+    archive = _make_zip(tmp_path / "clash.zip", {"a/x?y.jpg": b"one", "a/x_y.jpg": b"two"})
+    dest = tmp_path / "out"
+    with pytest.raises(DownloadError, match="sanitization collision"):
+        download.safe_extract(archive, dest)
+    assert not (dest / download.EXTRACTION_MARKER).exists()  # aborted tree is NOT marked complete
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [("k/CON", "k/_CON"), ("k/name.", "k/name"), ("k/aux.txt", "k/_aux.txt")],
+)
+def test_safe_extract_reserved_and_trailing_segments(tmp_path, raw: str, expected: str) -> None:
+    archive = _make_zip(tmp_path / "r.zip", {raw: b"x"})
+    download.safe_extract(archive, tmp_path / "out")
+    assert (tmp_path / "out" / expected).read_bytes() == b"x"
+
+
+def test_renamed_members_block_provenance_record() -> None:
+    assert download._renamed_members_block([]) == {}
+    renames = [("a/b?x.jpg", "a/b_x.jpg"), ("d/c:2.jpg", "d/c_2.jpg")]
+    block = download._renamed_members_block(renames)
+    assert block["extraction"]["renamed_count"] == 2
+    assert block["extraction"]["renamed_examples"][0] == {"member": "a/b?x.jpg", "written_as": "a/b_x.jpg"}
+    assert "deterministically" in block["extraction"]["policy"]

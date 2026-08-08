@@ -22,6 +22,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import time
 import zipfile
@@ -111,17 +112,63 @@ def _validate_member_name(name: str, archive: Path) -> list[str]:
     return parts
 
 
-def safe_extract(archive: Path, dest: Path) -> None:
+_ILLEGAL_SEGMENT_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+_RESERVED_NAMES = (
+    {"con", "prn", "aux", "nul"} | {f"com{i}" for i in range(1, 10)} | {f"lpt{i}" for i in range(1, 10)}
+)
+
+
+def sanitize_segment(name: str) -> str:
+    """Deterministic filesystem-safe path segment (identity for already-safe names).
+
+    Windows forbids `<>:"/\\|?*` and control characters in every path segment, strips
+    trailing dots/spaces, and reserves device names — archive members genuinely ship such
+    names (PlantDoc: `IMG_1629.JPG?1507122477.jpg`). Applied identically on every OS so an
+    extraction is byte-for-byte reproducible cross-platform.
+    """
+    cleaned = _ILLEGAL_SEGMENT_CHARS.sub("_", name).rstrip(" .")
+    if not cleaned:
+        cleaned = "_"
+    if cleaned.split(".", 1)[0].lower() in _RESERVED_NAMES:
+        cleaned = "_" + cleaned
+    return cleaned
+
+
+def _renamed_members_block(renames: list[tuple[str, str]]) -> dict:
+    """Provenance subsection recording filesystem-safety renames (never silent, never deleted)."""
+    if not renames:
+        return {}
+    return {
+        "extraction": {
+            "renamed_count": len(renames),
+            "renamed_examples": [
+                {"member": original, "written_as": written} for original, written in renames[:10]
+            ],
+            "policy": (
+                "Members whose names Windows forbids are renamed deterministically at "
+                "extraction; every rename is recorded here."
+            ),
+        }
+    }
+
+
+def safe_extract(archive: Path, dest: Path) -> list[tuple[str, str]]:
     """Manual, deterministic, MAX_PATH-aware extraction — ZipFile.extractall is never called.
 
     extractall has no `filter` parameter in any CPython release (the old PEP 706 branch was dead
     code that diverted every call into a second, unfiltered extractall), and win32 opens fail on
-    >260-char targets (PlantDoc ships ~210-char member names). Rules: zip-slip validation per
-    member, parents created before each file, extended-length paths on Windows, member processing
-    in sorted order, and a completion marker written only after the last byte.
+    >260-char targets (PlantDoc ships ~210-char member names) and on members whose names contain
+    characters Windows forbids (e.g. PlantDoc's `IMG_1629.JPG?1507122477.jpg`). Rules: zip-slip
+    validation per member, then per-segment sanitization (deterministic, identical on every OS),
+    collision-loud mapping (two members sanitizing to one target is an ERROR, never a silent
+    overwrite), parents created before each file, extended-length paths on Windows, members in
+    sorted order, completion marker written only after the last byte. Returns the recorded
+    renames as (original member, written-as relative path) — surfaced in PROVENANCE.json.
     """
     archive, dest = Path(archive), Path(dest)
     os.makedirs(dest, exist_ok=True)
+    renames: list[tuple[str, str]] = []
+    seen: dict[str, str] = {}
     with zipfile.ZipFile(archive) as zf:
         for member in sorted(zf.infolist(), key=lambda m: m.filename):
             if not member.filename.strip("/\\"):
@@ -129,9 +176,25 @@ def safe_extract(archive: Path, dest: Path) -> None:
             parts = _validate_member_name(member.filename, archive)
             if not parts:
                 continue
-            target = Path(dest, *parts)
+            safe_parts = [sanitize_segment(part) for part in parts]
+            is_dir = member.is_dir() or member.filename.endswith(("/", "\\"))
+            if safe_parts != parts and not is_dir:
+                renames.append((member.filename, "/".join(safe_parts)))
+                if len(renames) <= 25:
+                    logger.warning(
+                        "member renamed for filesystem safety: %r -> %r", member.filename, "/".join(safe_parts)
+                    )
+            key = "/".join(safe_parts).casefold() + ("/" if is_dir else "")
+            previous = seen.get(key)
+            if previous is not None and previous != member.filename:
+                raise DownloadError(
+                    f"sanitization collision in {archive.name}: {member.filename!r} and {previous!r} "
+                    f"both map to {Path(*safe_parts)} — refusing to overwrite"
+                )
+            seen[key] = member.filename
+            target = Path(dest, *safe_parts)
             try:
-                if member.is_dir() or member.filename.endswith(("/", "\\")):
+                if is_dir:
                     os.makedirs(windows_safe(target), exist_ok=True)
                     continue
                 os.makedirs(windows_safe(target.parent), exist_ok=True)
@@ -141,21 +204,32 @@ def safe_extract(archive: Path, dest: Path) -> None:
                 raise DownloadError(
                     f"cannot extract member {member.filename!r} from {archive.name} to {target}: {exc}"
                 ) from exc
+    if renames:
+        logger.warning(
+            "%d member(s) renamed for filesystem safety in %s — recorded in PROVENANCE.json (extraction)",
+            len(renames),
+            archive.name,
+        )
     (dest / EXTRACTION_MARKER).write_text("complete\n", encoding="utf-8")
+    return renames
 
 
-def _extract_nested_without_augmentation(extract_root: Path) -> Path:
-    """If the archive contains nested zips, prefer the *without augmentation* one."""
+def _extract_nested_without_augmentation(extract_root: Path) -> tuple[Path, list[tuple[str, str]]]:
+    """If the archive contains nested zips, prefer the *without augmentation* one.
+
+    Returns (content_root, renames); renames is empty when the tree is reused or flat.
+    """
     nested = sorted(extract_root.rglob("*.zip"))
     if not nested:
-        return extract_root
+        return extract_root, []
     preferred = [z for z in nested if "without" in z.name.lower() and "aug" in z.name.lower()]
     chosen = preferred[0] if preferred else nested[0]
     target = extract_root / chosen.stem
+    renames: list[tuple[str, str]] = []
     if not (target / EXTRACTION_MARKER).exists():
         logger.info("extracting nested archive %s", chosen.name)
-        safe_extract(chosen, target)
-    return target
+        renames = safe_extract(chosen, target)
+    return target, renames
 
 
 def find_images_root(extract_root: Path, dataset: str, min_class_dirs: int = 2) -> Path:
@@ -213,18 +287,21 @@ def _license_gate(spec: DatasetSpec, action: str, accept_license: bool) -> None:
     )
 
 
-def _extraction_root(dataset_dir: Path, archive: Path) -> Path:
-    """Reuse only COMPLETE extractions (marker present); partial/crashed trees re-extract."""
+def _extraction_root(dataset_dir: Path, archive: Path) -> tuple[Path, list[tuple[str, str]]]:
+    """Reuse only COMPLETE extractions (marker present); partial/crashed trees re-extract.
+
+    Returns (extract_root, renames); renames is empty when a complete tree is reused.
+    """
     extract_root = dataset_dir / "extracted"
     if (extract_root / EXTRACTION_MARKER).exists():
         logger.info("reusing existing extraction %s", extract_root)
-        return extract_root
+        return extract_root, []
     if extract_root.exists():
         logger.warning("incomplete extraction (no %s) — re-extracting: %s", EXTRACTION_MARKER, extract_root)
     else:
         logger.info("extracting %s", archive.name)
-    safe_extract(archive, extract_root)
-    return extract_root
+    renames = safe_extract(archive, extract_root)
+    return extract_root, renames
 
 
 def _summarize_root(images_root: Path, dataset_dir: Path) -> dict:
@@ -273,8 +350,9 @@ def download_dataset(key: str, dest_root: Path, accept_license: bool = False) ->
         if used_url is None:
             raise DownloadError(f"all download candidates failed for {key!r}: {last_error}") from last_error
 
-    extract_root = _extraction_root(dataset_dir, archive)
-    content_root = _extract_nested_without_augmentation(extract_root)
+    extract_root, renames = _extraction_root(dataset_dir, archive)
+    content_root, nested_renames = _extract_nested_without_augmentation(extract_root)
+    renames = renames + nested_renames
     images_root = find_images_root(content_root, key)
 
     now = datetime.now(UTC).isoformat(timespec="seconds")
@@ -292,6 +370,7 @@ def download_dataset(key: str, dest_root: Path, accept_license: bool = False) ->
         "archive_file": archive.name,
         "archive_bytes": archive.stat().st_size,
         "images_root": str(images_root.relative_to(dataset_dir)),
+        **_renamed_members_block(renames),
         **_summarize_root(images_root, dataset_dir),
     }
     (dataset_dir / "PROVENANCE.json").write_text(
@@ -325,6 +404,7 @@ def import_dataset(
     dataset_dir.mkdir(parents=True, exist_ok=True)
     now = datetime.now(UTC).isoformat(timespec="seconds")
 
+    renames: list[tuple[str, str]] = []
     if archive is not None:
         archive = Path(archive)
         if not archive.exists():
@@ -333,7 +413,9 @@ def import_dataset(
             raise DownloadError(
                 f"not a zip archive: {archive}. If your browser produced a folder instead, use --directory."
             )
-        content_root = _extract_nested_without_augmentation(_extraction_root(dataset_dir, archive))
+        extract_root, renames = _extraction_root(dataset_dir, archive)
+        content_root, nested_renames = _extract_nested_without_augmentation(extract_root)
+        renames = renames + nested_renames
         resolved_root = find_images_root(content_root, key)
         resolved_str, dataset_dir_str = str(resolved_root), str(dataset_dir.resolve())
         images_root_rel = (
@@ -382,6 +464,7 @@ def import_dataset(
         "images_root": images_root_rel if images_root_rel is not None else str(resolved_root),
         "images_root_absolute": images_root_rel is None,
         "structure_warnings": warnings,
+        **_renamed_members_block(renames),
         **_summarize_root(resolved_root, dataset_dir),
     }
     (dataset_dir / "PROVENANCE.json").write_text(

@@ -161,4 +161,5 @@ commit** after the support rule has been applied to them.
 | `archive-integrity` SKIP | archive not in Downloads — pass `--archive PATH` or set `$env:CROPMIND_ARCHIVE`, or use the certutil line |
 | `[INFO] checkpoint-byte-hash …differs` | expected — the documented train.py save protocol (see the checkpoint-hashes note) |
 | PlantDoc shows NOT_RUN | Step 3 not completed — `data\raw\plantdoc\PROVENANCE.json` must exist |
+| `WARNING … renamed for filesystem safety` during Step 3 | expected for a handful of PlantDoc files whose names contain characters Windows forbids (e.g. `IMG_1629.JPG?1507122477.jpg`); each rename is recorded in `data\raw\plantdoc\PROVENANCE.json` under `extraction` |
 | `No module named ...` | wrong shell/venv — run everything from the repo root with `.\.venv\Scripts\python.exe` |
