@@ -1,0 +1,6 @@
+# Shared lint config for ml/ (backend has its own backend/pyproject.toml).
+line-length = 110
+target-version = "py312"
+
+[lint]
+extend-select = ["I"]
