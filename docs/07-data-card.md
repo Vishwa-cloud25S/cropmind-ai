@@ -21,10 +21,12 @@ verification log lives in `docs/datasets.md`; this card is the model-facing data
 - **Acquisition:** automated download refused by the source (HTTP 403, all endpoints,
   2026-08-08). Manual import route per register; we do not bypass access controls and do not use
   scraped mirrors. Archive sha256 recorded in the operator's `PROVENANCE.json`
-  (`data/raw/plantvillage/PROVENANCE.json`). The Colab training run independently recorded the
-  same field (`dataset_sha256` in `runs/20260808-180238-0.1.0/provenance.json`); matching the two
-  recomputed against the operator's local archive closes the integrity chain — tracked as Step 2
-  of `docs/08-eval-runbook.md` (status: pending operator confirmation).
+  (`data/raw/plantvillage/PROVENANCE.json`, `acquisition.archive_sha256` =
+  `ac3432453984d02a86197987e775a5429d0d59e7cc7c35bcf5a8f50349b90ff0`). Run directories carry
+  **no** dataset provenance by design — the binding runs the other way: the run's
+  `metrics.json` must reference this dataset (`plantvillage@v1`) and this split's
+  `content_sha256`, and Gate C (`docs/08-eval-runbook.md` Step 2) verifies both links plus the
+  local archive hash when the archive is available (status: pending operator run).
 - **Augmentation-leakage policy:** ONLY the `without_augmentation` tree feeds splits. Our own
   augmentation is runtime-only inside the training transform, applied to the train split —
   never to files, so val/test can never contain an augmented duplicate of a train image.

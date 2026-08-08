@@ -35,9 +35,23 @@ From `ml/configs/train_v1.yaml` (copied into the run directory by every run):
 2026-08-08):** Google Colab, T4 GPU, torch 2.13.0+cu134, torchvision 0.28.0+cu134,
 numpy 2.11.0, Pillow 12.1.1. The pinned-supported CPU environment for reproduction/Gate C is
 `ml/requirements-ml-lock.txt` (torch 2.10.0+cpu); the checkpoint is plain torchvision
-MobileNetV3-Small weights and loads identically under both. Training-side hash pinning of the
-dataset archive: recorded in the run's `provenance.json` (`dataset_sha256`); cross-verification
-against the operator's local archive is tracked in `docs/08-eval-runbook.md` Step 2.
+MobileNetV3-Small weights and loads identically under both.
+
+**Integrity & provenance (accurate as of 2026-08-09):** run directories contain *model and
+run metadata only* (`checkpoint.pt`, `checkpoint.sha256`, `metrics.json`, `config.yaml`).
+Dataset provenance — acquisition, license, and the archive's recorded
+`acquisition.archive_sha256` — lives at `data/raw/plantvillage/PROVENANCE.json`, and the
+executable split record at `data/splits/plantvillage/v1/split_manifest.json`; Gate C
+(`docs/08-eval-runbook.md` Step 2, `ml/evaluation/gate.py`) cross-checks that
+`metrics.json` references exactly this dataset (`plantvillage@v1`) and split content hash,
+and verifies the local archive against the recorded hash when the archive is available.
+**Checkpoint hashes — recorded, not "corrected":** `train.py`'s save protocol hashes the
+first serialization (`checkpoint.sha256` = `8af96dcfd32c…86b7f`), embeds that value in
+`meta.checkpoint_sha256`, then re-saves; the bytes on disk therefore hash differently
+(independently recomputed 2026-08-09: `77d6e020179e…fe2be`). Both values are recorded
+here; the validator enforces embedded == recorded and reports the byte hash as evidence.
+A save-protocol improvement (hash of the final artifact) is queued as a separate reviewed
+change — it does not touch this run.
 
 ## 3. Data
 
