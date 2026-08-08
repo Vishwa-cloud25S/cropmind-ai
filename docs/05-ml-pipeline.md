@@ -54,6 +54,10 @@ CLI: `python -m ml.data.cli {download|split|verify|stats|pipeline} --dataset …
   content sha, seed, model_version) with sha256 sidecar.
 - **Hardware posture:** one AdamW/cosine config runs CPU or CUDA (`device: auto`); augmentation is
   train-split-only runtime transforms (leakage policy §2). Early stopping on val top-1.
+- **Colab GPU route (free tier):** `notebooks/train_colab.ipynb` runs the identical config/seed on a
+  T4 with the archive uploaded to the operator's own Drive (Mendeley blocks automated download);
+  optional sha256 pinning ties the run to the locally verified `PROVENANCE.json`; the run's
+  `metrics.json` is the canonical artifact for its checkpoint.
 - **Sample checkpoint:** `python -m ml.training.sample_model` builds a clearly-labelled plumbing
   checkpoint (`0.0.0-sample`, synthetic patterns) for demo/inference wiring without a GPU.
 
