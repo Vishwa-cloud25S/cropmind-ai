@@ -44,3 +44,22 @@ def toy_zip(tmp_path):
     with zipfile.ZipFile(outer_zip_path, "w") as zf:
         zf.write(inner_zip_path, inner_zip_path.name)
     return outer_zip_path
+
+
+@pytest.fixture()
+def toy_plantdoc_zip(tmp_path):
+    """Flat zip using real PlantDoc class-folder names (GitHub-zip style)."""
+    import zipfile
+
+    staging = tmp_path / "pd_staging"
+    for cls, count in {"Tomato Early blight leaf": 3, "Apple leaf": 2}.items():
+        cls_dir = staging / cls
+        cls_dir.mkdir(parents=True)
+        for i in range(count):
+            Image.new("RGB", (8, 8), (50, i * 40, 90)).save(cls_dir / f"p_{i}.jpg")
+    zip_path = tmp_path / "plantdoc.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        for p in staging.rglob("*"):
+            if p.is_file():
+                zf.write(p, p.relative_to(staging))
+    return zip_path
