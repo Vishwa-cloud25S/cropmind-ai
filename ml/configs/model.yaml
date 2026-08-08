@@ -1,0 +1,50 @@
+# CropMind AI — model configuration (v0.1, 2026-08-08)
+# Confidence bands and thresholds are CONFIGURATION, never hardcoded in inference code (spec §10).
+# Values change only with recorded evaluation evidence (reports/model_evaluation/).
+
+version: "0.1"
+updated: "2026-08-08"
+
+model:
+  name: cropmind-leaf-classifier
+  implementation: mobilenet_v3_small   # torchvision transfer-learned baseline (Phase 3)
+  version: "0.0.0"                     # no checkpoint exists yet — honest status below
+  status: NOT_TRAINED                  # NOT_TRAINED | TRAINING | EVALUATED | PROMOTED | RETIRED
+  checkpoint: null                     # phase 3: uri + sha256 recorded in model_versions
+  training_datasets: []                # phase 2+: e.g. [{source: plantvillage, version: mendeley-v1, subset: [tomato, potato, corn, apple]}]
+  notes: "Baseline defined in docs/01-product-requirements.md (M1). Weights are never committed to git."
+
+confidence_bands:
+  high: 0.60
+  medium: 0.45
+  low: 0.25
+  # below `low` the API must say "inconclusive — retake photo / agronomist review advised"
+
+uncertainty:
+  method: predictive_entropy           # phase 3; reported alongside confidence (spec §9)
+  report_max_softmax: true
+
+severity:
+  method: heatmap_area_ratio           # experimental proxy: Grad-CAM area / crop area
+  label: "Estimated visual severity"   # NEVER present as agronomic severity (spec §13)
+  replace_with: "segmentation-based area estimate (roadmap phase 4+)"
+
+explainability:
+  method: gradcam
+  target_layer: auto_last_conv
+  ui_caveat: "Highlighted regions show areas that contributed strongly to the model's prediction. They are not a guarantee of disease location."  # spec §12
+
+inference:
+  image_size: 224
+  device: auto                          # cpu by default; cuda if available
+  max_batch: 16
+
+localization:
+  method: gradcam_threshold_regions     # interim proxy until detector trained (documented, not hidden)
+  detector_candidate: torchvision Faster R-CNN or YOLOX (both permissively licensed)  # ADR-005
+  detector_training_dataset: plantdoc   # CC BY 4.0, whole-leaf boxes (known limitation)
+
+evaluation:
+  held_out_dataset: plantvillage_test_split
+  out_of_domain_dataset: plantdoc       # honest domain-gap measurement (M1 gate 2)
+  report_dir: reports/model_evaluation/
