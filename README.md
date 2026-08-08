@@ -12,7 +12,10 @@
 
 ![CI](https://github.com/Vishwa-cloud25S/cropmind-ai/actions/workflows/ci.yml/badge.svg)
 
-> **Status: Phase 1 — Runnable architecture complete (2026-08-08).**
+> **Status: Phases 0–3 done; Phase 4 evaluation pipeline shipped (2026-08-08).**
+> Real baseline trained on the operator's GPU route (run `20260808-180238-0.1.0`, training-reported
+> held-out test top-1 **0.9959**, in-domain only — formal M1 gates are measured by
+> `ml.evaluation.cli report`; see docs/06-model-card.md).
 > The stack boots today (API + worker + frontend + Postgres), the landing page and API health/
 > model-truth endpoints are live, and CI runs lint + typecheck + tests + docker builds.
 > See [`docs/14-roadmap.md`](docs/14-roadmap.md) for the phase plan and what lands next.
@@ -122,10 +125,14 @@ pip install -r ml/requirements.txt
 python -m ml.training.sample_model
 #    Lets you exercise inference + explainability without a GPU or the real dataset.
 
-# 2) Real training run (after `ml.data.cli` import + split). CPU or CUDA via `device: auto`;
+# 2) Real training run (after `ml.data.cli import + split). CPU or CUDA via `device: auto`;
 #    designed for free Colab/Kaggle GPU. Every run writes runs/<run_id>/ {config, metrics.json,
-#    checkpoint.pt, checkpoint.sha256}.
+#    checkpoint.pt, checkpoint.sha256}.  Free-GPU route: notebooks/train_colab.ipynb.
 python -m ml.training.train --config ml/configs/train_v1.yaml
+
+# 3) Evaluation report (Phase 4): held-out + PlantDoc OOD, per-class P/R/F1, confusion matrices,
+#    Grad-CAM exemplars, latency p50/p95, M1 gate table — generated, never hand-edited.
+python -m ml.evaluation.cli report --run-dir runs/<run_id> --device cpu
 ```
 
 Every prediction from `ml/inference/predictor.py` carries confidence band (from
@@ -150,9 +157,10 @@ working, not a bug.
 | [01 — Product requirements](docs/01-product-requirements.md) | ✅ Phase 0 |
 | [02 — System architecture](docs/02-system-architecture.md) | ✅ Phase 0 |
 | [Datasets & license register](docs/datasets.md) | ✅ Phase 0 |
-| [14 — Development roadmap](docs/14-roadmap.md) | ✅ Phase 0, updated Phase 1 |
+| [14 — Development roadmap](docs/14-roadmap.md) | ✅ Phase 0, updated through Phase 4 |
 | [Taxonomy & model config](ml/configs) — what the model does/doesn't support | ✅ Phase 1 (live via `/supported-crops`, `/model-info`) |
-| Model card, data card, API, security, privacy, testing, deployment, user guide, limitations, responsible-AI | Planned (Phases 3–13 per roadmap) |
+| [05 — ML pipeline](docs/05-ml-pipeline.md) · [06 — Model card](docs/06-model-card.md) · [07 — Data card](docs/07-data-card.md) | ✅ Phases 3–4 (v1; formal gates measured from the operator's eval report) |
+| API, security, privacy, testing, deployment, user guide, limitations, responsible-AI | Planned (Phases 5–13 per roadmap) |
 
 ## License
 

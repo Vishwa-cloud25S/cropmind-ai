@@ -61,11 +61,21 @@ CLI: `python -m ml.data.cli {download|split|verify|stats|pipeline} --dataset …
 - **Sample checkpoint:** `python -m ml.training.sample_model` builds a clearly-labelled plumbing
   checkpoint (`0.0.0-sample`, synthetic patterns) for demo/inference wiring without a GPU.
 
-## 4. Evaluation stage (Phase 4 — contract)
+## 4. Evaluation stage (implemented, Phase 4 — `ml/evaluation/`)
 
-- Held-out PlantVillage test split: top-1, per-class P/R/F1, confusion matrix PNG.
-- Out-of-domain PlantDoc evaluation (honesty metric, never tuned on).
-- Latency: CPU inference time distribution (p50/p95) at 224px.
+- **Command:** `python -m ml.evaluation.cli report --run-dir runs/<run_id> --device cpu` — auto-discovers
+  checkpoint + training metrics + config copy from the run directory; PlantDoc OOD runs automatically
+  when `data/raw/plantdoc/PROVENANCE.json` exists, else the report records NOT_RUN with the fetch command.
+- **Method:** drives the shipped `Predictor` per image (product path, not a reimplementation) over the
+  deterministic test split and the PlantDoc raw tree; per-class P/R/F1 mirror the training evaluator's
+  definitions (`ml/evaluation/core.py`).
+- **Artifacts (`reports/model_evaluation/`, operator-local):** REPORT.md + summary.json, confusion-matrix
+  PNGs (Pillow, no matplotlib), ≤12 worst-error/INCONCLUSIVE exemplars with Grad-CAM overlays, band
+  histogram, latency p50/p95, M1 gate table (docs/01 §6) measured exactly as specified.
+- **Gates:** in-domain top-1 ≥ 0.80, PlantDoc OOD top-1 published as-is (target ≥ 0.50, never tuned),
+  CPU latency p95 ≤ 2,500 ms/image; training-vs-eval drift > 0.02 is flagged. Model card v1 + data card
+  v1: docs/06, docs/07; class-support rule (F1 ≥ 0.90 & support ≥ 20) computed by the report, flipped in
+  config only via a separate reviewed commit.
 - Failure exemplars: top false positives/negatives saved for the model card.
 - Output: `reports/model_evaluation/<model_version>/` — machine JSON + markdown + charts.
 - Gates (M1, PRD §6): top-1 ≥ 0.80 in-domain; OOD number reported as-is; CPU p50 ≤ 2.5 s.
