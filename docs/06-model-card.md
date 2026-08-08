@@ -31,6 +31,14 @@ From `ml/configs/train_v1.yaml` (copied into the run directory by every run):
 | seed | 42 | augmentation (train split only) | rand-resized crop 0.7–1.0, hflip 0.5, rotation 15°, color jitter 0.2/0.2/0.15 |
 | device policy | `auto` (cuda else cpu); AMP on CUDA only | run artifacts | `runs/20260808-180238-0.1.0/` (config copy, metrics.json, checkpoint.pt, checkpoint.sha256) |
 
+**Training runtime actually executed (recorded by the notebook's audit cell, run
+2026-08-08):** Google Colab, T4 GPU, torch 2.13.0+cu134, torchvision 0.28.0+cu134,
+numpy 2.11.0, Pillow 12.1.1. The pinned-supported CPU environment for reproduction/Gate C is
+`ml/requirements-ml-lock.txt` (torch 2.10.0+cpu); the checkpoint is plain torchvision
+MobileNetV3-Small weights and loads identically under both. Training-side hash pinning of the
+dataset archive: recorded in the run's `provenance.json` (`dataset_sha256`); cross-verification
+against the operator's local archive is tracked in `docs/08-eval-runbook.md` Step 2.
+
 ## 3. Data
 
 Held-out split provenance: **PlantVillage, Mendeley mirror v1** (`mendeley-v1`, DOI
