@@ -84,20 +84,34 @@ cd ml       && python -m pytest -q
 
 ## Dataset setup (Phase 2 pipeline)
 
-Public, licensed datasets — downloaded on demand, never committed to git
-(see [`docs/datasets.md`](docs/datasets.md) for the audited license register):
+Public, licensed datasets — never committed to git
+(see [`docs/datasets.md`](docs/datasets.md) for the audited license register and
+Windows PowerShell instructions):
+
+**PlantVillage (CC0)** — the authoritative source currently refuses automated clients
+(HTTP 403), so use the manual route: download
+[`Plant_leaf_diseases_dataset_without_augmentation.zip`](https://data.mendeley.com/datasets/tywbtsjrjv/1)
+(~828 MB) in your browser, then:
+
+```bash
+python -m ml.data.cli import --dataset plantvillage --archive <path-to-zip> --accept-license
+python -m ml.data.cli split --dataset plantvillage && \
+python -m ml.data.cli verify --dataset plantvillage && \
+python -m ml.data.cli stats --dataset plantvillage
+```
+
+Already-extracted folder instead? `--directory <path>` verifies it in place (no copy).
+
+**PlantDoc (CC BY 4.0)** — automated route works:
 
 ```bash
 pip install -r ml/requirements.txt
-
-python -m ml.data.cli pipeline --dataset plantvillage --accept-license   # ~0.8 GB (CC0)
-python -m ml.data.cli pipeline --dataset plantdoc    --accept-license    # CC BY 4.0
+python -m ml.data.cli pipeline --dataset plantdoc --accept-license
 ```
 
-The downloader refuses to fetch anything until you pass `--accept-license` (it prints the exact
-page where terms were checked). It then extracts safely, writes `PROVENANCE.json` (URL, license,
-sha256, image/class counts), builds deterministic 70/15/15 splits (seed 42, recorded), verifies
-integrity + leakage, and writes `reports/datasets/*-stats.md`.
+Every route enforces the license gate, structural verification, `PROVENANCE.json`
+(source, DOI, license, access date, acquisition method, checksums), deterministic 70/15/15
+splits (seed 42, recorded), leakage checks, and `reports/datasets/*-stats.md`.
 
 ## Product principles (non-negotiable)
 
