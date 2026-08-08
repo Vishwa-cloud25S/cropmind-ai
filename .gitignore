@@ -1,0 +1,61 @@
+# ─────────────────────────────────────────────────────────────
+# CropMind AI — never commit secrets, datasets, or model weights
+# ─────────────────────────────────────────────────────────────
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.netrc
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+npm-debug.log*
+
+# Large datasets (raw downloaded data is NEVER committed)
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/annotations/*
+!data/annotations/.gitkeep
+data/splits/*
+!data/splits/.gitkeep
+
+# Model weights & checkpoints (tracked in model registry instead)
+ml/models/pretrained/*
+!ml/models/pretrained/.gitkeep
+*.pt
+*.pth
+*.onnx
+*.safetensors
+*.ckpt
+
+# Runtime artifacts
+backend/uploads/
+uploads/
+*.log
+
+# Evaluation reports are generated artifacts (keep dir)
+reports/model_evaluation/*
+!reports/model_evaluation/.gitkeep
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
+Thumbs.db

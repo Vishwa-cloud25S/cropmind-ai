@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="CropMind AI logo">
+  <rect width="64" height="64" rx="14" fill="#14211B"/>
+  <circle cx="32" cy="32" r="24" fill="none" stroke="#4CBB6A" stroke-width="1.4" stroke-dasharray="3 6" opacity="0.5"/>
+  <path d="M32 13c-8 6-12.5 11.8-12.5 18.7C19.5 38.8 25 46 32 46s12.5-7.2 12.5-14.3C44.5 24.8 40 19 32 13z" fill="#4CBB6A"/>
+  <path d="M32 22v21M26.5 29.5l5.5-3 5.5 3M25.5 36.5l6.5-3.4 6.5 3.4" stroke="#0E1A13" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <circle cx="32" cy="32" r="3.3" fill="#F4F7F2"/>
+  <circle cx="32" cy="32" r="1.25" fill="#14211B"/>
+</svg>
