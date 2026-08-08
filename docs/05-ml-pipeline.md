@@ -43,16 +43,19 @@ CLI: `python -m ml.data.cli {download|split|verify|stats|pipeline} --dataset …
    applied to the training split only; nothing is written back to `data/`.
 3. **Check-level:** `verify_splits` fails CI if any path appears in more than one split.
 
-## 3. Training stage (Phase 3 — interface contract)
+## 3. Training stage (implemented, Phase 3)
 
-- **Model:** MobileNetV3-Small (torchvision weights, ImageNet init) with a replaced classifier
-  head → 21-class softmax (taxonomy-driven class list).
-- **Runs:** `ml/training/train.py --config ml/configs/train_v1.yaml`; every run writes
-  `runs/<run_id>/` with config copy, metrics history, confusion data, and a checkpoint
-  (checkpoint stays out of git; sha256 recorded).
-- **Hardware posture:** must run on free Colab/Kaggle GPU **and** CPU (slow but possible);
-  batch/accumulation in config, not code.
-- **Uncertainty:** predictive entropy + max-softmax recorded per sample at eval time.
+- **Model:** MobileNetV3-Small (torchvision, ImageNet init) with replaced head → 21-class softmax
+  from the taxonomy (`ml/training/model.py`, class order from `ml/training/classes.py` — sorted
+  disease_ids, embedded in every checkpoint).
+- **Runs:** `python -m ml.training.train --config ml/configs/train_v1.yaml`; every run writes
+  `runs/<run_id>/` with config copy, per-epoch history, per-class P/R/F1 + held-out test metrics in
+  `metrics.json`, and `checkpoint.pt` (state_dict + meta: class list, dataset version + splits
+  content sha, seed, model_version) with sha256 sidecar.
+- **Hardware posture:** one AdamW/cosine config runs CPU or CUDA (`device: auto`); augmentation is
+  train-split-only runtime transforms (leakage policy §2). Early stopping on val top-1.
+- **Sample checkpoint:** `python -m ml.training.sample_model` builds a clearly-labelled plumbing
+  checkpoint (`0.0.0-sample`, synthetic patterns) for demo/inference wiring without a GPU.
 
 ## 4. Evaluation stage (Phase 4 — contract)
 
@@ -63,28 +66,23 @@ CLI: `python -m ml.data.cli {download|split|verify|stats|pipeline} --dataset …
 - Output: `reports/model_evaluation/<model_version>/` — machine JSON + markdown + charts.
 - Gates (M1, PRD §6): top-1 ≥ 0.80 in-domain; OOD number reported as-is; CPU p50 ≤ 2.5 s.
 
-## 5. Inference stage (Phases 3–5 — contract)
+## 5. Inference stage (implemented, Phase 3 — `ml/inference/predictor.py`)
 
-`ml/inference/predictor.py` exposes:
+`Predictor(checkpoint, config_dir)` exposes `predict(image, explain_dir?) -> dict` with the full
+contract: prediction_id, status (SUSPECTED/INCONCLUSIVE), phrasing ("Suspected {crop} - {name} -
+{x}% confidence"), crop, condition, confidence, band, uncertainty (normalized predictive entropy),
+estimated_visual_severity (Grad-CAM region fraction, labelled), regions, gradcam_overlay path,
+model/dataset/threshold versions, latency_ms, timestamp, top_k, plus the fixed limitation notice
+and explainability caveat. Bands load from `ml/configs/model.yaml` at init; below LOW ⇒ status
+INCONCLUSIVE with retake/review advice. The backend worker (Phase 5) calls this module; the API
+never loads weights directly.
 
-```python
-class Predictor:
-    def predict(self, image: Path) -> Prediction: ...
-    # Prediction: crop, condition(disease_id), confidence, band(HIGH/MEDIUM/LOW),
-    # uncertainty(predictive entropy), estimated_visual_severity,
-    # gradcam_overlay_path, regions[], model_version, dataset_version,
-    # threshold_version, latency_ms, timestamp
-```
+## 6. Explainability stage (implemented, Phase 3 — `ml/explainability/gradcam.py`)
 
-Bands come from `ml/configs/model.yaml`; below the LOW band the API answers
-*inconclusive — retake/review advised*. The worker (`backend/app/workers/`) calls this module;
-the API never loads model weights directly.
-
-## 6. Explainability stage (Phase 3)
-
-Grad-CAM over the last conv block (pytorch-grad-cam or in-house), saved as an overlay image.
-UI text is fixed and honest: *"Highlighted regions indicate areas that contributed strongly to
-the model's prediction. They are not a guarantee of disease location."*
+In-house Grad-CAM over the last features block (hooks; no OpenCV dependency), LUT overlay saved as
+PNG, and coarse region extraction (grid-cell fraction above threshold → bbox + fraction, feeding
+the visual-severity proxy). UI text is fixed and honest: *"Highlighted regions indicate areas that
+contributed strongly to the model's prediction. They are not a guarantee of disease location."*
 
 ## 7. Versioning & reproducibility
 

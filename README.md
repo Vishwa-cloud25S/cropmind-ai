@@ -113,6 +113,27 @@ Every route enforces the license gate, structural verification, `PROVENANCE.json
 (source, DOI, license, access date, acquisition method, checksums), deterministic 70/15/15
 splits (seed 42, recorded), leakage checks, and `reports/datasets/*-stats.md`.
 
+## Train / run the model (Phase 3 pipeline)
+
+```bash
+pip install -r ml/requirements.txt
+
+# 1) Generate the sample checkpoint (pipeline plumbing; synthetic data; gitignored).
+python -m ml.training.sample_model
+#    Lets you exercise inference + explainability without a GPU or the real dataset.
+
+# 2) Real training run (after `ml.data.cli` import + split). CPU or CUDA via `device: auto`;
+#    designed for free Colab/Kaggle GPU. Every run writes runs/<run_id>/ {config, metrics.json,
+#    checkpoint.pt, checkpoint.sha256}.
+python -m ml.training.train --config ml/configs/train_v1.yaml
+```
+
+Every prediction from `ml/inference/predictor.py` carries confidence band (from
+`ml/configs/model.yaml` — never hardcoded), uncertainty, estimated visual severity, Grad-CAM
+overlay, and model/dataset/threshold versions; below the LOW band the answer is **INCONCLUSIVE**
+with retake/review advice. The sample model may say INCONCLUSIVE a lot — that's the honesty gate
+working, not a bug.
+
 ## Product principles (non-negotiable)
 
 1. Open source and publicly licensed data first; no paid APIs where avoidable.
