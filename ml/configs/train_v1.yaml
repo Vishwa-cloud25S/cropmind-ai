@@ -1,0 +1,47 @@
+# Training run config — baseline v1 (Phase 3).
+# Every value is configuration, never hardcoded in train.py. Runs write runs/<run_id>/ with this file copied.
+
+run:
+  name: baseline-v1
+  model_version: "0.1.0"          # promoted version after M1 gates; see docs/01 §6
+  out_dir: runs/
+  seed: 42
+
+data:
+  dataset: plantvillage
+  splits_dir: data/splits/plantvillage/v1   # produced by ml.data.cli (deterministic, seed 42)
+  class_source: taxonomy                    # class list = sorted disease_ids from ml/configs/taxonomy.yaml
+
+image:
+  size: 224
+
+model:
+  arch: mobilenet_v3_small
+  pretrained: true                            # ImageNet init; tests/sample runs set false (no hub download)
+
+train:
+  device: auto                                # cuda if available else cpu — runs on free Colab/Kaggle
+  epochs: 12
+  batch_size: 32
+  num_workers: 4
+  optimizer: adamw
+  lr_head: 0.001
+  lr_features: 0.0001
+  weight_decay: 0.01
+  label_smoothing: 0.1
+  scheduler: cosine
+  warmup_epochs: 1
+  early_stopping_patience: 4
+  amp: true                                   # automatic mixed precision on CUDA only
+
+augmentation:                                 # TRAIN SPLIT ONLY — leakage policy (docs/05-ml-pipeline §2)
+  random_resized_crop_scale: [0.7, 1.0]
+  hflip_prob: 0.5
+  rotation_deg: 15
+  color_jitter:
+    brightness: 0.2
+    contrast: 0.2
+    saturation: 0.15
+
+eval:
+  report_test_split: true                     # held-out number for the M1 gates/eval report
