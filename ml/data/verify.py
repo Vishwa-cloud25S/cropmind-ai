@@ -1,4 +1,5 @@
-"""Pipeline verification: provenance completeness + split integrity + leakage checks.
+"""Pipeline verification: provenance completeness + split integrity + leakage checks,
+plus raw-dataset structure verification used by manual import.
 
 Returns lists of problems (empty = OK) so it can serve both the CLI and tests.
 """
@@ -6,18 +7,22 @@ Returns lists of problems (empty = OK) so it can serve both the CLI and tests.
 import json
 from pathlib import Path
 
+from ml.data import classmap
 from ml.data import split as split_mod
+from ml.data.registry import REGISTRY
 
 REQUIRED_PROVENANCE_KEYS = {
     "dataset",
     "name",
     "version",
     "page_url",
+    "doi",
+    "citation",
     "license_id",
     "license_url",
     "license_observed",
     "downloaded_utc",
-    "archive_sha256",
+    "acquisition",
     "images_root",
     "image_count",
 }
@@ -34,6 +39,53 @@ def verify_provenance(provenance_path: Path) -> list[str]:
     if data.get("archive_sha256") and len(data["archive_sha256"]) != 64:
         problems.append("archive_sha256 is not a sha256 hex digest")
     return problems
+
+
+def verify_dataset_structure(images_root: Path, dataset: str) -> tuple[list[str], list[str]]:
+    """Structural gate before a dataset feeds the pipeline (spec §10 of the fix).
+
+    Returns (problems, warnings). Problems block; warnings are recorded/reported only.
+    """
+    spec = REGISTRY[dataset]
+    problems: list[str] = []
+    warnings: list[str] = []
+    root = Path(images_root)
+    if not root.is_dir():
+        return [f"images root does not exist or is not a directory: {root}"], warnings
+
+    class_dirs = [d for d in root.iterdir() if d.is_dir()]
+    if not class_dirs:
+        return [f"no class folders found under {root}"], warnings
+
+    mapped_ok, unmapped, excluded = [], [], []
+    for class_dir in class_dirs:
+        mapping = classmap.map_class_dir(dataset, class_dir.name)
+        if mapping is classmap.EXCLUDE:
+            excluded.append(class_dir.name)
+        elif mapping is None:
+            unmapped.append(class_dir.name)
+        else:
+            mapped_ok.append(class_dir)
+
+    if len(mapped_ok) < spec.expected_min_mapped_class_dirs:
+        problems.append(
+            f"structure check failed: {len(mapped_ok)} mappable class folders found, expected at least "
+            f"{spec.expected_min_mapped_class_dirs} for dataset {dataset!r}. "
+            f"Check that you are pointing at the class-folder root of the correct dataset "
+            f"(e.g. the without-augmentation folder for PlantVillage)."
+        )
+    for class_dir in mapped_ok:
+        has_image = any(
+            p.is_file() and p.suffix.lower() in split_mod.IMAGE_EXTS
+            for p in class_dir.iterdir()
+        )
+        if not has_image:
+            problems.append(f"mappable class folder contains no images: {class_dir.name}")
+    if unmapped:
+        warnings.append(f"class folders out of V1 scope (recorded, skipped): {sorted(unmapped)}")
+    if excluded:
+        warnings.append(f"class folders explicitly excluded by policy: {sorted(excluded)}")
+    return problems, warnings
 
 
 def verify_splits(split_dir: Path) -> list[str]:

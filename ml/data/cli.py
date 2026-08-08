@@ -1,10 +1,15 @@
 """Dataset pipeline CLI.
 
-    python -m ml.data.cli download --dataset plantvillage --accept-license
+    python -m ml.data.cli download --dataset plantdoc --accept-license      # automated route (AUTO_OK datasets)
+    python -m ml.data.cli import   --dataset plantvillage --archive  ~/Downloads/plantvillage.zip --accept-license
+    python -m ml.data.cli import   --dataset plantvillage --directory /data/pv_class_folders --accept-license
     python -m ml.data.cli split    --dataset plantvillage
-    python -m ml.data.cli verify   --dataset plantvillage
+    python -m ml.data.cli verify   --dataset plantvillage                    # + --structure-only for raw checks
     python -m ml.data.cli stats    --dataset plantvillage
-    python -m ml.data.cli pipeline --dataset plantvillage --accept-license
+    python -m ml.data.cli pipeline --dataset plantdoc --accept-license
+
+PlantVillage's authoritative source currently refuses automated clients (HTTP 403):
+use the manual import route documented in docs/datasets.md.
 
 Data lands under data/ (gitignored). Reports land under reports/datasets/.
 """
@@ -31,7 +36,8 @@ def _images_root_for(dataset: str, raw_dir: Path, explicit: str | None) -> Path:
     prov_path = raw_dir / dataset / "PROVENANCE.json"
     if prov_path.exists():
         prov = json.loads(prov_path.read_text(encoding="utf-8"))
-        return raw_dir / dataset / prov["images_root"]
+        stored = Path(prov["images_root"])
+        return stored if stored.is_absolute() else raw_dir / dataset / stored
     # no provenance (e.g. hand-placed data): locate by class folders
     return download.find_images_root(Path(raw_dir) / dataset, dataset)
 
@@ -39,6 +45,19 @@ def _images_root_for(dataset: str, raw_dir: Path, explicit: str | None) -> Path:
 def cmd_download(args) -> int:
     root = download.download_dataset(args.dataset, args.raw_dir, accept_license=args.accept_license)
     print(f"images root: {root}")
+    return 0
+
+
+def cmd_import(args) -> int:
+    root = download.import_dataset(
+        args.dataset,
+        args.raw_dir,
+        archive=args.archive,
+        directory=args.directory,
+        accept_license=args.accept_license,
+    )
+    print(f"images root: {root}")
+    print("provenance recorded; next: python -m ml.data.cli split --dataset", args.dataset)
     return 0
 
 
@@ -56,16 +75,27 @@ def cmd_split(args) -> int:
 
 
 def cmd_verify(args) -> int:
-    problems = verify.verify_provenance(args.raw_dir / args.dataset / "PROVENANCE.json")
-    split_dir = _split_dir(args)
-    if split_dir.exists():
-        problems += verify.verify_splits(split_dir)
+    problems: list[str] = []
+    warnings: list[str] = []
+    if getattr(args, "structure_only", False):
+        images_root = _images_root_for(args.dataset, args.raw_dir, getattr(args, "images_root", None))
+        problems, warnings = verify.verify_dataset_structure(images_root, args.dataset)
+        if not problems:
+            print(f"structure OK: {images_root}")
+    else:
+        problems += verify.verify_provenance(args.raw_dir / args.dataset / "PROVENANCE.json")
+        split_dir = _split_dir(args)
+        if split_dir.exists():
+            problems += verify.verify_splits(split_dir)
+        if not problems:
+            print("verification OK: provenance complete, splits intact, no leakage")
+    for warning in warnings:
+        print(f"  warning: {warning}")
     if problems:
         print("VERIFICATION FAILED:")
         for problem in problems:
             print(f"  - {problem}")
         return 1
-    print("verification OK: provenance complete, splits intact, no leakage")
     return 0
 
 
@@ -88,10 +118,14 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--reports-dir", type=Path, default=DEFAULT_REPORTS)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    for name, fn in (("download", cmd_download), ("split", cmd_split), ("verify", cmd_verify), ("stats", cmd_stats), ("pipeline", cmd_pipeline)):
+    for name, fn in (("download", cmd_download), ("import", cmd_import), ("split", cmd_split), ("verify", cmd_verify), ("stats", cmd_stats), ("pipeline", cmd_pipeline)):
         sp = sub.add_parser(name, parents=[common])
-        if name in ("download", "pipeline"):
+        if name in ("download", "import", "pipeline"):
             sp.add_argument("--accept-license", action="store_true", help="confirm you reviewed the dataset license (page URL is printed otherwise)")
+        if name == "import":
+            source = sp.add_mutually_exclusive_group(required=True)
+            source.add_argument("--archive", type=Path, default=None, help="path to a downloaded dataset .zip (extracted into data/raw/<dataset>)")
+            source.add_argument("--directory", type=Path, default=None, help="path to an already-extracted class-folder root (verified in place)")
         if name in ("split", "pipeline"):
             sp.add_argument("--images-root", default=None)
             sp.add_argument("--seed", type=int, default=42)
@@ -101,6 +135,9 @@ def build_parser() -> argparse.ArgumentParser:
             sp.add_argument("--split-version", default="v1")
         elif name in ("verify", "stats"):
             sp.add_argument("--split-version", default="v1")
+        if name == "verify":
+            sp.add_argument("--structure-only", action="store_true", help="check class-folder structure only")
+            sp.add_argument("--images-root", default=None)
         sp.set_defaults(func=fn)
     return parser
 

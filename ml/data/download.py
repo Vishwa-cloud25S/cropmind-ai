@@ -1,14 +1,20 @@
-"""License-gated dataset downloader.
+"""License-gated dataset acquisition: automated download + manual import.
 
 Guarantees:
-- Refuses to download until the operator confirms the license (--accept-license);
+- Refuses to act until the operator confirms the license (--accept-license);
   the gate message points at the exact page where terms were checked.
-- Verifies the download is really a zip archive (PK signature), because mirror
+- Verifies downloads are really zip archives (PK signature), because mirror
   endpoints change shape (JSON wrappers) without notice.
 - Extracts safely (no path traversal) and, for "Download All"-style archives,
   prefers the nested *without-augmentation* archive to prevent augmented
   duplicates leaking into splits.
-- Writes PROVENANCE.json — a first-class provenance record (spec §6).
+- HTTP 403 (DownloadForbiddenError) fails fast with manual-route guidance:
+  the automated client is refused by the source, and we do NOT bypass access
+  controls (no UA spoofing, session tricks) nor retry forbidden endpoints.
+- Manual import routes (user-provided --archive / --directory) are verified
+  structurally before any use.
+- Always writes PROVENANCE.json: source, version, DOI, citation, license,
+  access date, acquisition method, checksums (spec §6).
 """
 
 import hashlib
@@ -22,8 +28,8 @@ from pathlib import Path
 
 import requests
 
-from ml.data import classmap
-from ml.data.registry import REGISTRY, DatasetSpec
+from ml.data import classmap, verify
+from ml.data.registry import REGISTRY, DatasetSpec, ProgrammaticStatus
 
 logger = logging.getLogger("cropmind.ml.download")
 
@@ -36,10 +42,20 @@ class DownloadError(RuntimeError):
     pass
 
 
+class DownloadForbiddenError(DownloadError):
+    """HTTP 403: the source refused the automated request.
+
+    We do not bypass access controls (no UA spoofing, session tricks, or other
+    workarounds). The manual/browser route is the documented alternative.
+    """
+
+
 def _fetch(url: str, dest: Path, log_every_mb: int = 64) -> int:
-    """Stream url -> dest. Raises DownloadError on non-200 or JSON responses."""
+    """Stream url -> dest. Raises on non-200 or JSON responses; 403 gets its own class."""
     logger.info("downloading %s", url)
     with requests.get(url, stream=True, timeout=(10, 300), allow_redirects=True) as r:
+        if r.status_code == 403:
+            raise DownloadForbiddenError(f"HTTP 403 from {url}")
         if r.status_code != 200:
             raise DownloadError(f"HTTP {r.status_code} from {url}")
         if "json" in r.headers.get("content-type", ""):
@@ -113,17 +129,77 @@ def find_images_root(extract_root: Path, dataset: str, min_class_dirs: int = 2) 
     return best
 
 
+def manual_route_guidance(spec: DatasetSpec) -> str:
+    """User-facing explanation for a blocked automatic download."""
+    steps = "\n".join(f"  {i + 1}. {s}" for i, s in enumerate(spec.manual_steps))
+    return (
+        f"{spec.name!r} cannot be downloaded programmatically.\n"
+        f"Status: {spec.programmatic_status} — {spec.status_note}\n\n"
+        f"HTTP 403 means the authoritative source rejected automated download "
+        f"(it requires a manual/browser download). We do not bypass authentication, "
+        f"CAPTCHAs or other access controls, and we do not use unofficial scraped copies.\n\n"
+        f"Official manual route ({spec.page_url}):\n{steps}\n"
+    )
+
+
+def _base_provenance(spec: DatasetSpec, now: str) -> dict:
+    return {
+        "dataset": spec.key,
+        "name": spec.name,
+        "version": spec.version,
+        "doi": spec.doi,
+        "citation": spec.citation,
+        "page_url": spec.page_url,
+        "license_id": spec.license_id,
+        "license_url": spec.license_url,
+        "license_observed": spec.license_observed,
+        "programmatic_status": spec.programmatic_status,
+        "downloaded_utc": now,
+        "access_date_utc": now,
+        "notes": spec.notes,
+        "attribution": spec.citation or "See docs/datasets.md citations.",
+    }
+
+
+def _license_gate(spec: DatasetSpec, action: str, accept_license: bool) -> None:
+    if accept_license:
+        return
+    raise LicenseNotAcceptedError(
+        f"Refusing to {action} without license confirmation.\n"
+        f"  1. Review the terms at {spec.page_url} (we observed: {spec.license_observed})\n"
+        f"  2. Re-run with --accept-license"
+    )
+
+
+def _extraction_root(dataset_dir: Path, archive: Path) -> Path:
+    extract_root = dataset_dir / "extracted"
+    if not extract_root.exists():
+        logger.info("extracting %s", archive.name)
+        safe_extract(archive, extract_root)
+    else:
+        logger.info("reusing existing extraction %s", extract_root)
+    return extract_root
+
+
+def _summarize_root(images_root: Path, dataset_dir: Path) -> dict:
+    class_dirs = sorted(c.name for c in images_root.iterdir() if c.is_dir())
+    return {
+        "class_dirs": class_dirs,
+        "class_dir_count": len(class_dirs),
+        "image_count": sum(
+            1 for p in images_root.rglob("*") if p.is_file() and not p.name.startswith(".")
+        ),
+    }
+
+
 def download_dataset(key: str, dest_root: Path, accept_license: bool = False) -> Path:
-    """Download + extract + record provenance. Returns the images root."""
+    """Automated route. AUTO_BLOCKED datasets refuse fast with manual guidance."""
     spec: DatasetSpec = REGISTRY[key]
-    if not accept_license:
-        raise LicenseNotAcceptedError(
-            f"Refusing to download {spec.name!r} without license confirmation.\n"
-            f"  1. Review the terms at {spec.page_url} (we observed: {spec.license_observed})\n"
-            f"  2. Re-run with --accept-license"
-        )
-    dest_root = Path(dest_root)
-    dataset_dir = dest_root / key
+    _license_gate(spec, f"download {spec.name!r}", accept_license)
+    if spec.programmatic_status == ProgrammaticStatus.AUTO_BLOCKED:
+        raise DownloadError(manual_route_guidance(spec))
+
+    dataset_dir = Path(dest_root) / key
     dataset_dir.mkdir(parents=True, exist_ok=True)
     archive = dataset_dir / spec.archive_name
 
@@ -139,6 +215,11 @@ def download_dataset(key: str, dest_root: Path, accept_license: bool = False) ->
                     raise DownloadError("downloaded file is not a zip archive (bad/moved endpoint)")
                 used_url = url
                 break
+            except DownloadForbiddenError as exc:
+                # Fail fast: 403 means automated access as such is refused; iterating into
+                # more endpoints of the same gated host (and bypassing controls) achieves nothing.
+                archive.unlink(missing_ok=True)
+                raise DownloadError(manual_route_guidance(spec)) from exc
             except DownloadError as exc:
                 last_error = exc
                 logger.warning("candidate failed: %s", exc)
@@ -146,43 +227,127 @@ def download_dataset(key: str, dest_root: Path, accept_license: bool = False) ->
         if used_url is None:
             raise DownloadError(f"all download candidates failed for {key!r}: {last_error}") from last_error
 
-    extract_root = dataset_dir / "extracted"
-    if not extract_root.exists():
-        logger.info("extracting %s", archive.name)
-        safe_extract(archive, extract_root)
+    extract_root = _extraction_root(dataset_dir, archive)
     content_root = _extract_nested_without_augmentation(extract_root)
     images_root = find_images_root(content_root, key)
 
-    class_dirs = sorted(c.name for c in images_root.iterdir() if c.is_dir())
-    image_count = sum(
-        1 for p in images_root.rglob("*") if p.is_file() and not p.name.startswith(".")
-    )
+    now = datetime.now(UTC).isoformat(timespec="seconds")
     provenance = {
-        "dataset": key,
-        "name": spec.name,
-        "version": spec.version,
-        "page_url": spec.page_url,
-        "license_id": spec.license_id,
-        "license_url": spec.license_url,
-        "license_observed": spec.license_observed,
-        "downloaded_utc": datetime.now(UTC).isoformat(timespec="seconds"),
+        **_base_provenance(spec, now),
+        "acquisition": {
+            "method": "auto-download",
+            "source_basename": archive.name,
+            "imported_utc": now,
+            "archive_sha256": sha256_file(archive),
+            "sha256_note": None,
+        },
         "source_url_used": used_url,
         "candidates_attempted": list(spec.candidates),
         "archive_file": archive.name,
-        "archive_sha256": sha256_file(archive),
         "archive_bytes": archive.stat().st_size,
         "images_root": str(images_root.relative_to(dataset_dir)),
-        "class_dirs": class_dirs,
-        "class_dir_count": len(class_dirs),
-        "image_count": image_count,
-        "notes": spec.notes,
-        "attribution": "See docs/datasets.md citations; attribution retained even under CC0.",
+        **_summarize_root(images_root, dataset_dir),
     }
     (dataset_dir / "PROVENANCE.json").write_text(
         json.dumps(provenance, indent=2) + "\n", encoding="utf-8"
     )
-    logger.info("provenance written: %s images in %s class dirs", image_count, len(class_dirs))
+    logger.info("provenance written: %s images", provenance["image_count"])
     return images_root
+
+
+def import_dataset(
+    key: str,
+    dest_root: Path,
+    *,
+    archive: Path | None = None,
+    directory: Path | None = None,
+    accept_license: bool = False,
+) -> Path:
+    """Manual acquisition route: verify + register a user-provided archive or directory.
+
+    - archive:   PK-signature check → path-traversal-safe extract → nested
+                 without-augmentation preference → structure verification → sha256 recorded.
+    - directory: verifies the class-folder structure IN PLACE (no multi-GB copy);
+                 checksum skipped with an explicit recorded reason.
+    """
+    spec = REGISTRY[key]
+    _license_gate(spec, f"import {spec.name!r} via the manual route", accept_license)
+    if (archive is None) == (directory is None):
+        raise ValueError("exactly one of archive= or directory= is required")
+
+    dataset_dir = Path(dest_root) / key
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    now = datetime.now(UTC).isoformat(timespec="seconds")
+
+    if archive is not None:
+        archive = Path(archive)
+        if not archive.exists():
+            raise DownloadError(f"archive not found: {archive}")
+        if not is_zip_archive(archive):
+            raise DownloadError(
+                f"not a zip archive: {archive}. If your browser produced a folder instead, use --directory."
+            )
+        content_root = _extract_nested_without_augmentation(_extraction_root(dataset_dir, archive))
+        resolved_root = find_images_root(content_root, key)
+        resolved_str, dataset_dir_str = str(resolved_root), str(dataset_dir.resolve())
+        images_root_rel = (
+            resolved_root.relative_to(dataset_dir_str).as_posix()
+            if resolved_str.startswith(dataset_dir_str)
+            else None
+        )
+        archive_sha256: str | None = sha256_file(archive)
+        sha_note = None
+        acquisition_method = "manual-archive"
+        source_basename = archive.name
+    else:
+        directory = Path(directory).resolve()
+        if not directory.is_dir():
+            raise DownloadError(f"directory not found: {directory}")
+        try:
+            resolved_root = find_images_root(directory, key)
+        except DownloadError as exc:
+            raise DownloadError(
+                f"{exc}\nPoint --directory at the dataset's class-folder root (or a parent of it)."
+            ) from exc
+        images_root_rel = None
+        archive_sha256 = None
+        sha_note = (
+            "directory import: no single archive to checksum; "
+            "file-level integrity is covered by split verification"
+        )
+        acquisition_method = "manual-directory"
+        source_basename = directory.name
+
+    problems, warnings = verify.verify_dataset_structure(resolved_root, key)
+    for warning in warnings:
+        logger.warning(warning)
+    if problems:
+        raise DownloadError("Dataset structure verification failed:\n  - " + "\n  - ".join(problems))
+
+    provenance = {
+        **_base_provenance(spec, now),
+        "acquisition": {
+            "method": acquisition_method,
+            "source_basename": source_basename,
+            "imported_utc": now,
+            "archive_sha256": archive_sha256,
+            "sha256_note": sha_note,
+        },
+        "images_root": images_root_rel if images_root_rel is not None else str(resolved_root),
+        "images_root_absolute": images_root_rel is None,
+        "structure_warnings": warnings,
+        **_summarize_root(resolved_root, dataset_dir),
+    }
+    (dataset_dir / "PROVENANCE.json").write_text(
+        json.dumps(provenance, indent=2) + "\n", encoding="utf-8"
+    )
+    logger.info(
+        "import OK: %s images across %s class dirs (%s)",
+        provenance["image_count"],
+        provenance["class_dir_count"],
+        acquisition_method,
+    )
+    return resolved_root
 
 
 def main_dest_default() -> Path:
