@@ -9,7 +9,7 @@ built and how to test it. Do not skip ahead.
 | Phase | Scope | Exit criteria | Status |
 |------:|-------|---------------|:------|
 | **0** | Requirements & architecture; dataset research; repo init | PRD v0.1, architecture v0.1, dataset register verified, roadmap, initial README, git history started | ✅ done 2026-08-08 |
-| **1** | Repository & runnable architecture | `docker compose up` serves: Next.js landing (+route stubs) on :3000, FastAPI `/health` + `/docs` on :8000, Postgres up; CI (lint, typecheck, backend smoke tests, frontend build) green; README quickstart verified | ⬜ next |
+| **1** | Repository & runnable architecture | `docker compose up` serves: Next.js landing (+route stubs) on :3000, FastAPI `/health` + `/docs` on :8000, worker + Postgres up; `/supported-crops` + `/model-info` report honest "NOT_TRAINED"; CI (ruff, pytest, eslint, tsc, next build, docker compose config + build) green; README quickstart verified | ✅ done 2026-08-08 |
 | **2** | Dataset pipeline | Download scripts (PlantVillage, PlantDoc) with PROVENANCE.json; licence re-check against `docs/datasets.md`; deterministic splits with recorded seed; config-driven crop/disease taxonomy in `ml/configs/`; data stats report | ⬜ |
 | **3** | ML baseline | MobileNetV3-Small transfer baseline trained on PlantVillage subset; inference module with confidence bands from `model.yaml`; Grad-CAM overlay; visual-severity proxy; sample checkpoint for demo (not in git); inference unit tests | ⬜ |
 | **4** | ML evaluation | Held-out + PlantDoc out-of-domain eval; per-class P/R/F1, confusion matrix, latency; auto-generated `reports/model_evaluation/`; model card v1 + data card v1; **M1 vertical-slice gates measured** | ⬜ |
