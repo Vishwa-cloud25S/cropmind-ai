@@ -1,6 +1,6 @@
 # Datasets — Research & Provenance Register
 
-**Register v0.3 — last verified 2026-08-08.** Owner: founder.
+**Register v0.4 — last verified 2026-08-08.** Owner: founder.
 
 **Gate rule (NFR-09):** no dataset enters the training pipeline unless it has a completed row
 below with an APPROVED decision, its provenance (`source_url`, version/date, image count,
@@ -71,6 +71,14 @@ python -m ml.data.cli import --dataset plantvillage --archive "$env:USERPROFILE\
 python -m ml.data.cli split  --dataset plantvillage
 python -m ml.data.cli verify --dataset plantvillage
 python -m ml.data.cli stats  --dataset plantvillage
+
+# 4) Baseline training run (Phase 3 config; hours on CPU — leave it running, see docs/05-ml-pipeline.md):
+python -m ml.training.train --config ml/configs/train_v1.yaml
+
+# Every command above is ONE line — copy from THIS FILE in your editor, not from a
+# chat window: chat renderers wrap long lines and linkify dotted module names,
+# which corrupts pasted commands. Verify your clone is current first: `git pull origin main`
+# then `python -m ml.data.cli --help` must list `import` among the subcommands.
 
 # PlantDoc (automated route works):
 python -m ml.data.cli pipeline --dataset plantdoc --accept-license
