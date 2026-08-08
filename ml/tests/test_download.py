@@ -84,3 +84,93 @@ def test_safe_extract_blocks_path_traversal(tmp_path):
         zf.writestr("../../escape.txt", "owned")
     with pytest.raises(DownloadError):
         download.safe_extract(evil, tmp_path / "out")
+
+
+# ---------------- safe extraction (Windows failure 2026-08-08, manual extractor) ----------------
+import zipfile
+
+
+def _make_zip(path, members: dict[str, bytes], dirs=()):
+    with zipfile.ZipFile(path, "w") as zf:
+        for dirname in dirs:
+            zf.writestr(dirname.rstrip("/") + "/", "")
+        for name, data in members.items():
+            zf.writestr(name, data)
+    return path
+
+
+def test_safe_extract_nested_dirs_and_long_member(tmp_path):
+    """PlantDoc-style deep tree + >260-char final path: parents created, bytes exact."""
+    long_name = "apple-tree-" + "branch-" * 25 + "928225.jpg"
+    member = f"master/train/Apple leaf/{long_name}"
+    archive = _make_zip(
+        tmp_path / "plantdoc.zip",
+        {member: b"jpeg-bytes", "master/train/Corn leaf/c.jpg": b"c"},
+        dirs=("master/train/Apple leaf/", "master/train/Corn leaf/"),
+    )
+    dest = tmp_path / "deep" / "more" / "extracted"
+    download.safe_extract(archive, dest)
+    target = dest / "master" / "train" / "Apple leaf" / long_name
+    assert len(str(target)) > 260
+    assert target.read_bytes() == b"jpeg-bytes"
+    assert (dest / "master" / "train" / "Corn leaf" / "c.jpg").read_bytes() == b"c"
+    assert (dest / download.EXTRACTION_MARKER).exists()
+
+
+@pytest.mark.parametrize(
+    "bad_name",
+    ["../evil.txt", "/abs.txt", "\\abs.txt", "a/../b.txt", "..\\evil.txt", "C:/evil.txt", "D:\\evil.txt"],
+)
+def test_safe_extract_rejects_zip_slip_members(tmp_path, bad_name):
+    archive = _make_zip(tmp_path / "evil.zip", {bad_name: b"pwn", "ok/good.txt": b"g"})
+    dest = tmp_path / "out"
+    with pytest.raises(DownloadError) as excinfo:
+        download.safe_extract(archive, dest)
+    assert archive.name in str(excinfo.value)
+    assert not (dest / download.EXTRACTION_MARKER).exists()  # aborted tree is NOT marked complete
+    for stray in dest.rglob("*") if dest.exists() else []:
+        assert "evil" not in stray.name
+
+
+def test_safe_extract_member_error_mentions_archive_member_target(tmp_path, monkeypatch):
+    archive = _make_zip(tmp_path / "some-name.zip", {"a/b/c.jpg": b"data"})
+    monkeypatch.setattr(
+        download.shutil, "copyfileobj", lambda *_: (_ for _ in ()).throw(OSError("disk full"))
+    )
+    with pytest.raises(DownloadError) as excinfo:
+        download.safe_extract(archive, tmp_path / "out")
+    message = str(excinfo.value)
+    assert "some-name.zip" in message
+    assert "a/b/c.jpg" in message
+    assert "disk full" in message
+    assert "to" in message
+
+
+def test_extraction_root_marker_idempotency_and_self_heal(tmp_path):
+    archive = _make_zip(tmp_path / "data.zip", {"k/f1.jpg": b"1", "k/f2.jpg": b"2"})
+    dataset_dir = tmp_path / "plantdoc"
+    dataset_dir.mkdir()
+
+    first = download._extraction_root(dataset_dir, archive)
+    assert (first / download.EXTRACTION_MARKER).exists()
+    snapshot = {p.name: p.read_bytes() for p in first.rglob("*.jpg")}
+
+    second = download._extraction_root(dataset_dir, archive)  # complete tree → reused untouched
+    assert second == first
+    assert {p.name: p.read_bytes() for p in second.rglob("*.jpg")} == snapshot
+
+    # Partial/crashed tree (file removed, marker removed) must self-heal, not be "reused".
+    (first / "k" / "f2.jpg").unlink()
+    (first / download.EXTRACTION_MARKER).unlink()
+    healed = download._extraction_root(dataset_dir, archive)
+    assert (healed / "k" / "f2.jpg").read_bytes() == b"2"
+    assert (healed / download.EXTRACTION_MARKER).exists()
+
+
+def test_safe_extract_deterministic_repeated_bytes(tmp_path):
+    members = {f"d/f{i}.jpg": bytes([i]) * 64 for i in range(5)}
+    archive = _make_zip(tmp_path / "d.zip", members)
+    download.safe_extract(archive, tmp_path / "one")
+    download.safe_extract(archive, tmp_path / "two")
+    for name in members:
+        assert (tmp_path / "one" / name).read_bytes() == (tmp_path / "two" / name).read_bytes()

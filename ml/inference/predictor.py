@@ -20,6 +20,7 @@ import torch
 import yaml
 from PIL import Image
 
+from ml.data.winpath import windows_safe
 from ml.explainability.gradcam import GradCAM, overlay_heatmap, regions_from_heat
 from ml.preprocessing.transforms import build_inference_transform
 from ml.training.classes import class_list, condition_name, crop_of
@@ -86,7 +87,7 @@ class Predictor:
 
     def predict(self, image_path: Path, explain_dir: Path | None = None, top_k: int = 3) -> dict:
         started = time.perf_counter()
-        pil = Image.open(image_path).convert("RGB")
+        pil = Image.open(windows_safe(image_path)).convert("RGB")  # no-op on short/POSIX paths
         input_tensor = self.transform(pil).unsqueeze(0).to(self.device)
 
         input_for_cam = input_tensor.clone().requires_grad_(True)

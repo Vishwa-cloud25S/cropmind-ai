@@ -11,6 +11,7 @@ from pathlib import Path
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 
+from ml.data.winpath import windows_safe
 from ml.training.classes import class_list
 
 
@@ -31,7 +32,7 @@ class SplitDataset(Dataset):
 
     def __getitem__(self, idx: int):
         path, label = self.items[idx]
-        image = Image.open(path).convert("RGB")
+        image = Image.open(windows_safe(path)).convert("RGB")  # windows_safe: no-op on short/POSIX paths
         if self.transform is not None:
             image = self.transform(image)
         return image, label

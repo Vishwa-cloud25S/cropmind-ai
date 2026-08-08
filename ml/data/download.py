@@ -5,9 +5,10 @@ Guarantees:
   the gate message points at the exact page where terms were checked.
 - Verifies downloads are really zip archives (PK signature), because mirror
   endpoints change shape (JSON wrappers) without notice.
-- Extracts safely (no path traversal) and, for "Download All"-style archives,
-  prefers the nested *without-augmentation* archive to prevent augmented
-  duplicates leaking into splits.
+- Extracts manually member-by-member: deterministic order, path-traversal validation,
+  Windows MAX_PATH-safe writes, and a completion marker that marks a tree as usable
+  (partial extractions self-heal). "Download All"-style archives resolve to the nested
+  *without-augmentation* archive to prevent augmented duplicates leaking into splits.
 - HTTP 403 (DownloadForbiddenError) fails fast with manual-route guidance:
   the automated client is refused by the source, and we do NOT bypass access
   controls (no UA spoofing, session tricks) nor retry forbidden endpoints.
@@ -21,6 +22,7 @@ import hashlib
 import json
 import logging
 import os
+import shutil
 import time
 import zipfile
 from datetime import UTC, datetime
@@ -30,6 +32,7 @@ import requests
 
 from ml.data import classmap, verify
 from ml.data.registry import REGISTRY, DatasetSpec, ProgrammaticStatus
+from ml.data.winpath import windows_safe
 
 logger = logging.getLogger("cropmind.ml.download")
 
@@ -88,18 +91,57 @@ def is_zip_archive(path: Path) -> bool:
         return fh.read(4) == b"PK\x03\x04"
 
 
+# Written only after the LAST member is extracted; its presence marks the tree complete.
+# A crashed/partial extraction has no marker and self-heals by re-extracting (deterministic overwrites).
+EXTRACTION_MARKER = ".extracted-ok"
+
+_DRIVE_PREFIX = ("A:", "B:", "C:", "D:", "E:", "F:", "G:", "H:", "I:", "J:", "K:", "L:", "M:",
+                 "N:", "O:", "P:", "Q:", "R:", "S:", "T:", "U:", "V:", "W:", "X:", "Y:", "Z:")
+
+
+def _validate_member_name(name: str, archive: Path) -> list[str]:
+    """Normalized path segments for one archive member; rejects zip-slip/absolute/drive forms."""
+    if len(name) >= 3 and name[1] == ":" and name[2] in ("/", "\\") and name[0].upper() + ":" in _DRIVE_PREFIX:
+        raise DownloadError(f"unsafe path in archive {archive.name}: {name!r} (drive-letter prefix)")
+    parts = [part for part in name.replace("\\", "/").split("/") if part not in ("", ".")]
+    if name.startswith(("/", "\\")):
+        raise DownloadError(f"unsafe path in archive {archive.name}: {name!r} (absolute path)")
+    if ".." in parts:
+        raise DownloadError(f"unsafe path in archive {archive.name}: {name!r} (path traversal)")
+    return parts
+
+
 def safe_extract(archive: Path, dest: Path) -> None:
-    dest.mkdir(parents=True, exist_ok=True)
+    """Manual, deterministic, MAX_PATH-aware extraction — ZipFile.extractall is never called.
+
+    extractall has no `filter` parameter in any CPython release (the old PEP 706 branch was dead
+    code that diverted every call into a second, unfiltered extractall), and win32 opens fail on
+    >260-char targets (PlantDoc ships ~210-char member names). Rules: zip-slip validation per
+    member, parents created before each file, extended-length paths on Windows, member processing
+    in sorted order, and a completion marker written only after the last byte.
+    """
+    archive, dest = Path(archive), Path(dest)
+    os.makedirs(dest, exist_ok=True)
     with zipfile.ZipFile(archive) as zf:
-        try:
-            zf.extractall(dest, filter="data")  # PEP 706 (py>=3.11.4)
-        except TypeError:  # very old interpreters
-            dest_resolved = dest.resolve()
-            for member in zf.namelist():
-                target = (dest / member).resolve()
-                if target != dest_resolved and str(dest_resolved) + os.sep not in str(target):
-                    raise DownloadError(f"unsafe path in archive: {member}") from None
-            zf.extractall(dest)
+        for member in sorted(zf.infolist(), key=lambda m: m.filename):
+            if not member.filename.strip("/\\"):
+                continue  # archive-root pseudo entry
+            parts = _validate_member_name(member.filename, archive)
+            if not parts:
+                continue
+            target = Path(dest, *parts)
+            try:
+                if member.is_dir() or member.filename.endswith(("/", "\\")):
+                    os.makedirs(windows_safe(target), exist_ok=True)
+                    continue
+                os.makedirs(windows_safe(target.parent), exist_ok=True)
+                with zf.open(member) as source, open(windows_safe(target), "wb") as out:
+                    shutil.copyfileobj(source, out)
+            except OSError as exc:
+                raise DownloadError(
+                    f"cannot extract member {member.filename!r} from {archive.name} to {target}: {exc}"
+                ) from exc
+    (dest / EXTRACTION_MARKER).write_text("complete\n", encoding="utf-8")
 
 
 def _extract_nested_without_augmentation(extract_root: Path) -> Path:
@@ -110,7 +152,7 @@ def _extract_nested_without_augmentation(extract_root: Path) -> Path:
     preferred = [z for z in nested if "without" in z.name.lower() and "aug" in z.name.lower()]
     chosen = preferred[0] if preferred else nested[0]
     target = extract_root / chosen.stem
-    if not target.exists():
+    if not (target / EXTRACTION_MARKER).exists():
         logger.info("extracting nested archive %s", chosen.name)
         safe_extract(chosen, target)
     return target
@@ -172,12 +214,16 @@ def _license_gate(spec: DatasetSpec, action: str, accept_license: bool) -> None:
 
 
 def _extraction_root(dataset_dir: Path, archive: Path) -> Path:
+    """Reuse only COMPLETE extractions (marker present); partial/crashed trees re-extract."""
     extract_root = dataset_dir / "extracted"
-    if not extract_root.exists():
-        logger.info("extracting %s", archive.name)
-        safe_extract(archive, extract_root)
-    else:
+    if (extract_root / EXTRACTION_MARKER).exists():
         logger.info("reusing existing extraction %s", extract_root)
+        return extract_root
+    if extract_root.exists():
+        logger.warning("incomplete extraction (no %s) — re-extracting: %s", EXTRACTION_MARKER, extract_root)
+    else:
+        logger.info("extracting %s", archive.name)
+    safe_extract(archive, extract_root)
     return extract_root
 
 

@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
+from ml.data.winpath import windows_safe
 from ml.inference.predictor import Predictor
 
 
@@ -61,7 +62,7 @@ def materialize_exemplars(predictor: Predictor, picked: list[dict], ex_dir: Path
         if overlay_src and overlay_src.exists():
             overlay_name = f"{k:02d}-gradcam.png"
             overlay_src.rename(ex_dir / overlay_name)
-        orig = Image.open(rec["path"]).convert("RGB")
+        orig = Image.open(windows_safe(rec["path"])).convert("RGB")  # no-op on short/POSIX paths
         orig.thumbnail((416, 416))
         orig_name = f"{k:02d}-orig.png"
         orig.save(ex_dir / orig_name)
