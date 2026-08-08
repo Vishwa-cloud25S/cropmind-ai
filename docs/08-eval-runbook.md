@@ -16,6 +16,10 @@ cd C:\Users\vishw\Desktop\cropmind-ai
 git pull origin main
 ```
 
+> **Fast path:** once Steps 0–1 are done, `scripts\gate_c.ps1` runs Steps 3–5 for you
+> (with the run-dir checks built in): from the repo root, type `.\scripts\` then press
+> **TAB** to autocomplete the script name, then **Enter**. Steps 1–2 below stay manual.
+
 ## Step 1 — Bring the Colab run directory local
 
 The run lives in your Google Drive at `My Drive/cropmind/runs/20260808-180238-0.1.0/`
