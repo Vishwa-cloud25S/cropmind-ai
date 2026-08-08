@@ -145,11 +145,46 @@ def _renamed_members_block(renames: list[tuple[str, str]]) -> dict:
                 {"member": original, "written_as": written} for original, written in renames[:10]
             ],
             "policy": (
-                "Members whose names Windows forbids are renamed deterministically at "
-                "extraction; every rename is recorded here."
+                "Members whose names Windows forbids are renamed deterministically at extraction, "
+                "and case-insensitive filename clashes (e.g. car1.jpg vs CAR1.jpg) are deduped "
+                "with ~2/~3… suffixes — nothing is ever overwritten; every rename is recorded here."
             ),
         }
     }
+
+
+def _bump_segment(segment: str, n: int) -> str:
+    """`name.jpg` -> `name~2.jpg`; extension preserved so image loading by suffix still works."""
+    stem, dot, ext = segment.rpartition(".")
+    if dot and stem:
+        return f"{stem}~{n}{dot}{ext}"
+    return f"{segment}~{n}"
+
+
+def _dedupe_file_parts(
+    safe_parts: list[str], member_name: str, seen: dict[str, str]
+) -> tuple[list[str], bool]:
+    """Resolve case-insensitive filename collisions deterministically.
+
+    Archives ship distinct members that collide case-insensitively (PlantDoc: `car1.jpg` vs
+    `CAR1.jpg`). First member in sorted order keeps its name; later ones get `~2`, `~3`…
+    suffixes. Nothing is ever overwritten silently; every bump is recorded by the caller.
+    A member re-appearing under its own name (duplicate entry in one archive) maps to itself.
+    """
+    key = "/".join(safe_parts).casefold()
+    previous = seen.get(key)
+    if previous is None or previous == member_name:
+        seen[key] = member_name
+        return safe_parts, False
+    n = 2
+    while True:
+        bumped = [*safe_parts[:-1], _bump_segment(safe_parts[-1], n)]
+        key = "/".join(bumped).casefold()
+        previous = seen.get(key)
+        if previous is None or previous == member_name:
+            seen[key] = member_name
+            return bumped, True
+        n += 1
 
 
 def safe_extract(archive: Path, dest: Path) -> list[tuple[str, str]]:
@@ -159,10 +194,12 @@ def safe_extract(archive: Path, dest: Path) -> list[tuple[str, str]]:
     code that diverted every call into a second, unfiltered extractall), and win32 opens fail on
     >260-char targets (PlantDoc ships ~210-char member names) and on members whose names contain
     characters Windows forbids (e.g. PlantDoc's `IMG_1629.JPG?1507122477.jpg`). Rules: zip-slip
-    validation per member, then per-segment sanitization (deterministic, identical on every OS),
-    collision-loud mapping (two members sanitizing to one target is an ERROR, never a silent
-    overwrite), parents created before each file, extended-length paths on Windows, members in
-    sorted order, completion marker written only after the last byte. Returns the recorded
+    validation per member, per-segment sanitization (deterministic, identical on every OS),
+    deterministic `~2`-suffix dedup for case-insensitive file collisions (`car1.jpg`/`CAR1.jpg`)
+    — renaming IS the refusal to overwrite — parents created before each file, extended-length
+    paths on Windows, members in sorted order, completion marker written only after the last
+    byte. Directory entries are never deduped: case-variant directories merge on Windows exactly
+    as they would on a Windows checkout of the source repository. Returns the recorded file
     renames as (original member, written-as relative path) — surfaced in PROVENANCE.json.
     """
     archive, dest = Path(archive), Path(dest)
@@ -178,25 +215,32 @@ def safe_extract(archive: Path, dest: Path) -> list[tuple[str, str]]:
                 continue
             safe_parts = [sanitize_segment(part) for part in parts]
             is_dir = member.is_dir() or member.filename.endswith(("/", "\\"))
-            if safe_parts != parts and not is_dir:
-                renames.append((member.filename, "/".join(safe_parts)))
-                if len(renames) <= 25:
-                    logger.warning(
-                        "member renamed for filesystem safety: %r -> %r", member.filename, "/".join(safe_parts)
-                    )
-            key = "/".join(safe_parts).casefold() + ("/" if is_dir else "")
-            previous = seen.get(key)
-            if previous is not None and previous != member.filename:
-                raise DownloadError(
-                    f"sanitization collision in {archive.name}: {member.filename!r} and {previous!r} "
-                    f"both map to {Path(*safe_parts)} — refusing to overwrite"
-                )
-            seen[key] = member.filename
             target = Path(dest, *safe_parts)
-            try:
-                if is_dir:
+            if is_dir:
+                try:
                     os.makedirs(windows_safe(target), exist_ok=True)
-                    continue
+                except OSError as exc:
+                    raise DownloadError(
+                        f"cannot extract member {member.filename!r} from {archive.name} to {target}: {exc}"
+                    ) from exc
+                continue
+            final_parts, clashed = _dedupe_file_parts(safe_parts, member.filename, seen)
+            if final_parts != parts:
+                written_as = "/".join(final_parts)
+                renames.append((member.filename, written_as))
+                if len(renames) <= 25:
+                    if clashed:
+                        logger.warning(
+                            "member renamed to avoid a name clash on case-insensitive filesystems: %r -> %r",
+                            member.filename,
+                            written_as,
+                        )
+                    else:
+                        logger.warning(
+                            "member renamed for filesystem safety: %r -> %r", member.filename, written_as
+                        )
+            target = Path(dest, *final_parts)
+            try:
                 os.makedirs(windows_safe(target.parent), exist_ok=True)
                 with zf.open(member) as source, open(windows_safe(target), "wb") as out:
                     shutil.copyfileobj(source, out)
@@ -206,7 +250,7 @@ def safe_extract(archive: Path, dest: Path) -> list[tuple[str, str]]:
                 ) from exc
     if renames:
         logger.warning(
-            "%d member(s) renamed for filesystem safety in %s — recorded in PROVENANCE.json (extraction)",
+            "%d member(s) renamed for filesystem safety/clash in %s — recorded in PROVENANCE.json (extraction)",
             len(renames),
             archive.name,
         )

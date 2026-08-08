@@ -232,13 +232,45 @@ def test_safe_extract_sanitizes_windows_illegal_names(tmp_path, caplog):
     assert (tmp_path / "out2" / "PlantDoc-Dataset-master" / "test" / "Bell_pepper leaf" / "IMG_1629.JPG_1507122477.jpg").read_bytes() == b"illegal-name-bytes"
 
 
-def test_safe_extract_sanitization_collision_fails_loudly(tmp_path):
-    """Two DISTINCT members mapping to one target: error, never a silent overwrite."""
+def test_safe_extract_sanitization_clash_deduped_not_overwritten(tmp_path):
+    """Two DISTINCT members mapping to one target (via sanitization): deterministic ~2
+    dedup, both contents preserved, renames recorded — never a silent overwrite."""
+    # sorted order: 'a/x?y.jpg' ('?'=0x3F) precedes 'a/x_y.jpg' ('_'=0x5F)
     archive = _make_zip(tmp_path / "clash.zip", {"a/x?y.jpg": b"one", "a/x_y.jpg": b"two"})
     dest = tmp_path / "out"
-    with pytest.raises(DownloadError, match="sanitization collision"):
-        download.safe_extract(archive, dest)
-    assert not (dest / download.EXTRACTION_MARKER).exists()  # aborted tree is NOT marked complete
+    renames = download.safe_extract(archive, dest)
+    assert (dest / "a" / "x_y.jpg").read_bytes() == b"one"
+    assert (dest / "a" / "x_y~2.jpg").read_bytes() == b"two"
+    assert (dest / download.EXTRACTION_MARKER).exists()
+    assert renames == [("a/x?y.jpg", "a/x_y.jpg"), ("a/x_y.jpg", "a/x_y~2.jpg")]
+
+
+def test_safe_extract_case_only_clash_deduped(tmp_path):
+    """The real Gate C failure: distinct members `CAR1.jpg` / `car1.jpg` collide on a
+    case-insensitive filesystem. Sorted order: 'CAR1.jpg' ('C'=0x43) precedes 'car1.jpg'."""
+    archive = _make_zip(tmp_path / "case.zip", {"k/car1.jpg": b"lower", "k/CAR1.jpg": b"upper"})
+    dest = tmp_path / "out"
+    renames = download.safe_extract(archive, dest)
+    assert (dest / "k" / "CAR1.jpg").read_bytes() == b"upper"  # first in sorted order keeps the name
+    assert (dest / "k" / "car1~2.jpg").read_bytes() == b"lower"  # later member deduped deterministically
+    assert renames == [("k/car1.jpg", "k/car1~2.jpg")]
+    # Deterministic: a second extraction yields the identical layout.
+    renames_two = download.safe_extract(archive, tmp_path / "out2")
+    assert renames_two == renames
+    assert (tmp_path / "out2" / "k" / "CAR1.jpg").read_bytes() == b"upper"
+    assert (tmp_path / "out2" / "k" / "car1~2.jpg").read_bytes() == b"lower"
+
+
+def test_safe_extract_chain_of_clashes_all_preserved(tmp_path):
+    """Every member wins a unique stable target; dedup counts climb deterministically."""
+    archive = _make_zip(tmp_path / "t.zip", {"d/f.jpg": b"a", "d/F.jpg": b"b", "d/f~2.jpg": b"c"})
+    dest = tmp_path / "out"
+    renames = download.safe_extract(archive, dest)
+    # sorted order: 'd/F.jpg' < 'd/f.jpg' < 'd/f~2.jpg'
+    assert (dest / "d" / "F.jpg").read_bytes() == b"b"  # first keeps the name
+    assert (dest / "d" / "f~2.jpg").read_bytes() == b"a"  # f.jpg deduped onto f~2 first...
+    assert (dest / "d" / "f~2~2.jpg").read_bytes() == b"c"  # ...so the literal f~2 member bumps again
+    assert renames == [("d/f.jpg", "d/f~2.jpg"), ("d/f~2.jpg", "d/f~2~2.jpg")]
 
 
 @pytest.mark.parametrize(

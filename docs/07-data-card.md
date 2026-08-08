@@ -51,9 +51,10 @@ verification log lives in `docs/datasets.md`; this card is the model-facing data
 - **Member-name safety (recorded):** a handful of archive members carry filenames Windows
   forbids (e.g. `IMG_1629.JPG?1507122477.jpg` — a Picasa cache suffix baked into the name).
   Extraction renames them deterministically (`?` → `_`, applied identically on every OS);
-  every rename is logged and recorded in `PROVENANCE.json` under `extraction`
-  (`renamed_count` + examples). No member is dropped; two members colliding onto one target
-  aborts extraction loudly instead of overwriting (2026-08-09, found by Gate C operator run).
+  distinct members clashing case-insensitively (`car1.jpg` vs `CAR1.jpg` — two real,
+  different images) are kept with deterministic `~2`/`~3`… suffixes. Every rename is logged
+  and recorded in `PROVENANCE.json` under `extraction` (`renamed_count` + examples); nothing
+  is ever dropped or overwritten silently (2026-08-09, found by Gate C operator run).
   Attribution: "Singh, D., Jain, N., Jain, P., Kayal, P., Kumawat, S., & Batra, N. (2020).
   PlantDoc: A Dataset for Visual Plant Disease Detection. CoDS-COMAD 2020. (CC BY 4.0)".
 - **Use:** OOD evaluation of the V1 classifier only — **never trained on, never tuned on**.
