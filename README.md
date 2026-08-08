@@ -12,10 +12,11 @@
 
 ![CI](https://github.com/Vishwa-cloud25S/cropmind-ai/actions/workflows/ci.yml/badge.svg)
 
-> **Status: Phases 0–3 done; Phase 4 evaluation pipeline shipped (2026-08-08).**
-> Real baseline trained on the operator's GPU route (run `20260808-180238-0.1.0`, training-reported
-> held-out test top-1 **0.9959**, in-domain only — formal M1 gates are measured by
-> `ml.evaluation.cli report`; see docs/06-model-card.md).
+> **Status: Phases 0–4 done — formal M1 gates measured 2026-08-09 (Gate C, operator CPU).**
+> Baseline run `20260808-180238-0.1.0`: in-domain held-out top-1 **0.9959** ✅ (≥ 0.80) ·
+> CPU latency **110.4 ms p95** ✅ (≤ 2,500 ms) · PlantDoc field OOD top-1 **0.2349** 🔶
+> (SHORTFALL vs 0.50 target — published as-is; both accuracy numbers travel together, always).
+> Details: docs/06-model-card.md §4.2.
 > The stack boots today (API + worker + frontend + Postgres), the landing page and API health/
 > model-truth endpoints are live, and CI runs lint + typecheck + tests + docker builds.
 > See [`docs/14-roadmap.md`](docs/14-roadmap.md) for the phase plan and what lands next.

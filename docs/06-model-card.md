@@ -76,16 +76,25 @@ the evaluation pipeline (`ml/evaluation/`) reproduces them independently per ima
 
 ### 4.2 Formal M1 gates (docs/01 §6) — measured by the evaluation report
 
-Run status: **PENDING operator execution** of
-`python -m ml.evaluation.cli report --run-dir runs/20260808-180238-0.1.0 --device cpu`
-(outputs `reports/model_evaluation/REPORT.md` + `summary.json`; this card is backfilled from
-that report — numbers are generated, never hand-edited).
+Run status: **MEASURED 2026-08-09** — operator Windows workstation, CPU, evaluator
+`ml/evaluation/` at `main`; preconditions validator PASS with audit record
+`reports/gate_c_precheck.json` (run ↔ dataset ↔ split manifest ↔ archive hash all bound).
+Artifacts: `reports/model_evaluation/{REPORT.md, summary.json, confusion_*.png, exemplars/}`.
+The values below are transcribed from the operator console output; the machine cross-check
+against `summary.json` is queued with the artifact attachment — anything that disagrees will
+be corrected to the file values (files win, always).
 
-| Gate | Requirement | Status |
-|---|---|---|
-| M1-in-domain-top1 | ≥ 0.80 held-out | Pre-registered PASS at 0.9959 (training-reported); formal status from eval reproduction |
-| M1-ood-top1 (PlantDoc) | reported as-is, target ≥ 0.50 | PENDING — no field-level claims until published |
-| M1-latency-cpu | p95 ≤ 2,500 ms/image on reference CPU | PENDING (measured in the same report) |
+| Gate | Requirement | Status | Measured |
+|---|---|---|---|
+| M1-in-domain-top1 | ≥ 0.80 held-out | ✅ **PASS** | **0.9959** (4,119 images; matches training-reported 0.99587, consistency drift ≈ 0.0000 ≤ 0.02) |
+| M1-ood-top1 (PlantDoc) | published as-is, target ≥ 0.50 | 🔶 **SHORTFALL** | **0.2349** (real field imagery) |
+| M1-latency-cpu | p95 ≤ 2,500 ms/image | ✅ **PASS** | **110.4 ms p95** (full production path incl. Grad-CAM per image) |
+
+Notes: the OOD pass iterated the raw extracted PlantDoc tree (1,477 files); the operator
+split/stats report counts 1,474 across the 17 mapped classes — the 3-file delta is being
+reconciled from the plantdoc stats/provenance records (attachment pending). The SHORTFALL
+status is the designed honesty checkpoint for the domain gap (see §6 limitations): a
+published fact, not a failed certification — and it motivates the roadmap's field-data work.
 
 ## 5. Support rule for classes
 
