@@ -53,6 +53,8 @@ uploads/
 # Evaluation reports are generated artifacts (keep dir)
 reports/model_evaluation/*
 !reports/model_evaluation/.gitkeep
+reports/datasets/*
+!reports/datasets/.gitkeep
 
 # OS / editors
 .DS_Store

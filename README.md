@@ -79,7 +79,25 @@ Tests and lint:
 ```bash
 cd backend  && python -m pytest -q && ruff check .
 cd frontend && npm run lint && npm run typecheck && npm run build
+cd ml       && python -m pytest -q
 ```
+
+## Dataset setup (Phase 2 pipeline)
+
+Public, licensed datasets — downloaded on demand, never committed to git
+(see [`docs/datasets.md`](docs/datasets.md) for the audited license register):
+
+```bash
+pip install -r ml/requirements.txt
+
+python -m ml.data.cli pipeline --dataset plantvillage --accept-license   # ~0.8 GB (CC0)
+python -m ml.data.cli pipeline --dataset plantdoc    --accept-license    # CC BY 4.0
+```
+
+The downloader refuses to fetch anything until you pass `--accept-license` (it prints the exact
+page where terms were checked). It then extracts safely, writes `PROVENANCE.json` (URL, license,
+sha256, image/class counts), builds deterministic 70/15/15 splits (seed 42, recorded), verifies
+integrity + leakage, and writes `reports/datasets/*-stats.md`.
 
 ## Product principles (non-negotiable)
 
