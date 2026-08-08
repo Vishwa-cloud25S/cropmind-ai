@@ -1,0 +1,17 @@
+.git
+**/node_modules
+**/.next
+**/__pycache__
+**/.venv
+.venv
+.env
+.env.*
+!.env.example
+data/raw
+data/processed
+data/annotations
+data/splits
+ml/models/pretrained
+reports/model_evaluation
+uploads
+*.log

@@ -1,0 +1,72 @@
+name: cropmind-ai
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cropmind}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cropmind-local-only}
+      POSTGRES_DB: ${POSTGRES_DB:-cropmind}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-cropmind}:${POSTGRES_PASSWORD:-cropmind-local-only}@db:5432/${POSTGRES_DB:-cropmind}
+      ML_CONFIG_DIR: /app/ml_configs
+      UPLOAD_DIR: /data/uploads
+      CORS_ORIGINS: http://localhost:3000
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["python", "-m", "app.workers.analysis_worker"]
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-cropmind}:${POSTGRES_PASSWORD:-cropmind-local-only}@db:5432/${POSTGRES_DB:-cropmind}
+      ML_CONFIG_DIR: /app/ml_configs
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      backend:
+        condition: service_started
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
+  uploads:
