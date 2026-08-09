@@ -18,6 +18,7 @@ from app.core.logging import request_id_ctx
 from app.db import models
 from app.db.session import DbSession
 from app.services.config_loader import load_taxonomy
+from app.services.mapping import validate_wgs84_polygon
 
 router = APIRouter(tags=["farms"])
 
@@ -45,6 +46,7 @@ class FieldPatch(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     crop_id: str | None = Field(default=None, max_length=60)
     area_ha: float | None = Field(default=None, gt=0, le=100000)
+    boundary_geojson: dict | None = None  # geographic WGS84 polygon drawn by the user (Phase 7)
 
 
 def _farm_payload(db, farm: models.Farm) -> dict:
@@ -67,6 +69,7 @@ def _field_payload(field: models.Field) -> dict:
         "name": field.name,
         "crop_id": field.crop_id,  # taxonomy crop_id (may be null = undecided)
         "area_ha": field.area_ha,
+        "boundary_geojson": field.boundary_geojson,  # geographic WGS84 polygon or null
         "created_at": field.created_at.isoformat() if field.created_at else None,
     }
 
@@ -204,6 +207,11 @@ def patch_field(field_id: str, body: FieldPatch, db: DbSession, request: Request
         field.crop_id = body.crop_id
     if body.area_ha is not None:
         field.area_ha = body.area_ha
+    if body.boundary_geojson is not None:
+        try:
+            field.boundary_geojson = validate_wgs84_polygon(body.boundary_geojson)
+        except ValueError as exc:
+            raise HTTPException(400, {"detail": f"invalid boundary: {exc}"}) from exc
     _audit(db, "FIELD_UPDATED", "field", field.id, request)
     return {"field": _field_payload(field)}
 

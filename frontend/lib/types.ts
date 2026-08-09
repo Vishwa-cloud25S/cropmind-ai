@@ -122,12 +122,86 @@ export interface FieldRecord {
   name: string;
   crop_id: string | null;
   area_ha: number | null;
+  boundary_geojson: { type: "Polygon"; coordinates: number[][][] } | null;
   created_at: string | null;
 }
 
 export interface FarmDetail {
   farm: Farm;
   fields: FieldRecord[];
+}
+
+// ── Phase 7: intervention zones + map ─────────────────────────────────────────
+
+export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type ReviewStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export interface InterventionZone {
+  id: string;
+  analysis_id: string;
+  field_id: string | null;
+  image_id: string | null;
+  geometry: RegionGeometry; // evidence-space polygon (coordinate_space inside)
+  condition: string;
+  confidence: number;
+  severity: number | null;
+  risk_level: RiskLevel;
+  risk_basis: string;
+  review_priority: number; // 1 = review first
+  review_priority_note: string;
+  review_status: ReviewStatus;
+  review_note: string | null;
+  reviewed_at: string | null;
+  georeference_source: "none";
+  est_area_ha: number | null;
+  area_note: string | null;
+  simulation_label: string;
+  created_at: string | null;
+  review_transition?: string; // present in the PATCH response
+}
+
+export interface ZoneList {
+  count: number;
+  zones: InterventionZone[];
+  simulation_label: string;
+}
+
+export interface ZoneGenerateResponse {
+  count: number;
+  zones: InterventionZone[];
+  note: string;
+  simulation_label: string;
+}
+
+export interface FieldMapAnalysis {
+  analysis_id: string;
+  image_id: string;
+  status: AnalysisState;
+  demo: boolean;
+  created_at: string | null;
+  prediction: {
+    status: PredictionState;
+    phrasing: string;
+    band: "HIGH" | "MEDIUM" | "LOW" | null;
+    confidence: number;
+    demo: boolean;
+  } | null;
+}
+
+export interface DecisionSupport {
+  risk_counts: Record<RiskLevel, number>;
+  review_counts: Record<ReviewStatus, number>;
+  pending_zone_count: number;
+  first_priority_zone_ids: string[];
+  note: string;
+  simulation_label: string;
+}
+
+export interface FieldMapData {
+  field: FieldRecord & { farm_name: string | null };
+  analyses: FieldMapAnalysis[];
+  zones: InterventionZone[];
+  decision_support: DecisionSupport;
 }
 
 export interface ConfidenceBands {

@@ -227,6 +227,8 @@ class InterventionZone(Base):
         sa.Enum("PENDING", "APPROVED", "REJECTED", name="review_status", native_enum=False), default="PENDING"
     )
     reviewer_id: Mapped[str | None] = mapped_column(_UUID, sa.ForeignKey("users.id"), nullable=True)
+    review_note: Mapped[str | None] = mapped_column(sa.String(500), nullable=True)  # migration 0003
+    reviewed_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True), nullable=True)  # migration 0003
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), server_default=sa.func.now())
 
     analysis: Mapped[Analysis] = relationship(back_populates="intervention_zones")

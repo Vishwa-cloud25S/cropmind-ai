@@ -4,9 +4,9 @@ const NAV = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/analyze", label: "Analyze" },
   { href: "/farms", label: "Farms" },
+  { href: "/map", label: "Map" },
   { href: "/analyses", label: "History" },
   { href: "/model-information", label: "Model info" },
-  { href: "/about", label: "About" },
 ];
 
 export default function SiteHeader() {

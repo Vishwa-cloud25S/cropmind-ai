@@ -10,12 +10,16 @@ import type {
   Farm,
   FarmDetail,
   FarmList,
+  FieldMapData,
   FieldRecord,
   ImageUploadResponse,
+  InterventionZone,
   ModelInfo,
   Prediction,
   PredictionList,
   SupportedCrops,
+  ZoneGenerateResponse,
+  ZoneList,
 } from "@/lib/types";
 
 export const API_BASE =
@@ -161,7 +165,12 @@ export function createField(
 
 export function updateField(
   fieldId: string,
-  body: { name?: string; crop_id?: string; area_ha?: number },
+  body: {
+    name?: string;
+    crop_id?: string;
+    area_ha?: number;
+    boundary_geojson?: { type: "Polygon"; coordinates: number[][][] };
+  },
 ): Promise<{ field: FieldRecord }> {
   return request<{ field: FieldRecord }>(`/fields/${fieldId}`, {
     method: "PATCH",
@@ -172,6 +181,38 @@ export function updateField(
 
 export function deleteField(fieldId: string): Promise<void> {
   return request<void>(`/fields/${fieldId}`, { method: "DELETE" });
+}
+
+// ── intervention zones + map (Phase 7) ────────────────────────────────────────
+
+export function generateZones(analysisId: string): Promise<ZoneGenerateResponse> {
+  return request<ZoneGenerateResponse>(`/analyses/${analysisId}/intervention-zones`, { method: "POST" });
+}
+
+export function listZones(
+  opts: { fieldId?: string; reviewStatus?: string; limit?: number; offset?: number } = {},
+): Promise<ZoneList> {
+  return request<ZoneList>(
+    `/intervention-zones${qs({ field_id: opts.fieldId, review_status: opts.reviewStatus, limit: opts.limit, offset: opts.offset })}`,
+  );
+}
+
+export function reviewZone(
+  zoneId: string,
+  body: { review_status: "APPROVED" | "REJECTED"; review_note?: string },
+): Promise<{ zone: InterventionZone }> {
+  return request<{ zone: InterventionZone }>(`/intervention-zones/${zoneId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export const zoneExportUrl = (opts: { fieldId?: string; format: "geojson" | "csv" }) =>
+  `${API_BASE}/intervention-zones/export${qs({ field_id: opts.fieldId, format: opts.format })}`;
+
+export function getFieldMapData(fieldId: string): Promise<FieldMapData> {
+  return request<FieldMapData>(`/fields/${fieldId}/map-data`);
 }
 
 // ── model truth ───────────────────────────────────────────────────────────────

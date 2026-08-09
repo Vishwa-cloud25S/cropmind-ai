@@ -39,17 +39,6 @@ const STUBS: Record<string, Stub> = {
     lede: "Single-field view with boundary and analysis history.",
     bullets: ["Draw/edit boundary on OpenStreetMap", "Upload imagery, run analysis", "Historical observations timeline"],
   },
-  map: {
-    title: "Field map",
-    phase: "Phase 7 · Geospatial mapping",
-    lede: "Leaflet + OpenStreetMap. No Google Maps APIs.",
-    bullets: [
-      "Field boundary, detection regions, intervention zones as toggleable layers",
-      "Select a zone → approve / reject",
-      "Export GeoJSON / CSV labelled 'precision intervention zone simulation'",
-      "Historical observations per field",
-    ],
-  },
   reports: {
     title: "Field reports",
     phase: "Phase 9",

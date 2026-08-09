@@ -482,7 +482,10 @@ export function FarmDetailPanel({ farmId, ...props }: FarmsDeps & { farmId: stri
                         {field.area_ha !== null ? ` · ${field.area_ha} ha` : ""}
                       </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-2">
+                      <Link href={`/map?field=${field.id}`} className="link-cta">
+                        Map →
+                      </Link>
                       <button type="button" className="btn-secondary" onClick={() => beginEdit(field)}>
                         Edit
                       </button>

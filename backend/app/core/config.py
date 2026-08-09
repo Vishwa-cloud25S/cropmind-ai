@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     job_heartbeat_timeout_s: int = 120  # RUNNING job silent longer than this => retried/failed
     job_retry_backoff_s: float = 10.0  # run_after = now + attempts^2 * backoff
 
+    # Phase 7 — intervention zones (rules documented in app/services/mapping.py)
+    zone_severity_critical: float = 0.5  # visual-severity proxy >= this escalates risk one level
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

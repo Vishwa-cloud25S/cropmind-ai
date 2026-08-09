@@ -124,8 +124,41 @@ scoping. Every write is audited (`FARM_CREATED` / `FARM_UPDATED` / `FARM_DELETED
 | DELETE | `/farms/{id}` | **204** — **409** `{"detail": {"detail": "farm still has fields — delete them first", "field_count"}}` while fields exist (never silently destructive) |
 | POST | `/farms/{farm_id}/fields` | **201** `{"field": {…}}`. `crop_id` is validated against the taxonomy's crop ids → **400** `{"detail": {"detail": "unsupported crop_id", "allowed": […]}}` (closed vocabulary — e.g. wheat is honestly rejected until licensed data + honest evaluation add it) |
 | GET | `/fields/{id}` | Single field (`404`) |
-| PATCH | `/fields/{id}` | name / crop_id (re-validated) / area_ha (`404`) |
+| PATCH | `/fields/{id}` | name / crop_id (re-validated) / area_ha / **boundary_geojson** — user-drawn WGS84 polygon, strictly validated (closed ring, ≥3 distinct corners, lon/lat ranges; `400` with the precise reason otherwise) (`404`) |
 | DELETE | `/fields/{id}` | **204** — **409** `{"detail": {"detail": "field is still referenced", "image_count", "zone_count"}}` while images or intervention zones reference it |
+
+### 3.7 Intervention zones & field map (Phase 7)
+
+**Geo-honesty (architectural, enforced here).** Image GPS coordinates are *stripped at
+upload* — privacy by design (docs/02 §9) — so the system cannot know where a leaf photo
+was taken, and refuses to invent it. Every zone is stored and returned in the evidence's
+own coordinate space (`image-normalized-xyxy`) with `georeference_source: "none"` until a
+genuinely georeferenced source (drone orthomosaic with a GeoTIFF transform) provides an
+honest pixel→geo mapping. `est_area_ha` is `null` with an explanatory `area_note` whenever
+scale is unknowable. Field *boundaries* are the only geographic data, because the user
+draws them directly (§3.6 boundary validation).
+
+**Zone generation.** From a COMPLETED SUSPECTED analysis only — an INCONCLUSIVE analysis
+generates **no zones** (the system abstained; there is honestly nothing to intervene on,
+and the response says so). One zone per detection region. Regeneration replaces PENDING
+zones but never touches APPROVED/REJECTED ones (human decisions are not silently
+overwritten).
+
+**Risk & review priority (deterministic rule, not a model).**
+`score = band_score (LOW→1, MEDIUM→2, HIGH→3) + 1 if visual-severity proxy ≥ zone_severity_critical (0.5 default)`;
+score→level at 1/2/3/4 = LOW/MEDIUM/HIGH/CRITICAL. Priority: CRITICAL→1 (review first),
+HIGH→2, MEDIUM→3, LOW→4. Payloads carry `risk_basis` describing the stored evidence the
+rule consumed. Zones carry no pesticide/product/dosage content — they are
+precision-intervention *simulations* pending human review.
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/analyses/{id}/intervention-zones` | **201** — generate. `{"count", "zones", "note", "simulation_label"}`; count 0 + abstention note for INCONCLUSIVE. **409** (status + poll) until COMPLETED, `404` unknown. Audited `ZONES_GENERATED` |
+| GET | `/intervention-zones?field_id=&review_status=&limit=&offset=` | Newest-first `{"count", "zones", "simulation_label"}`. `review_status` whitelisted → `400` with `allowed` |
+| GET | `/intervention-zones/{id}` | Single zone (`404`) |
+| PATCH | `/intervention-zones/{id}` | Body `{"review_status": "APPROVED"\|"REJECTED", "review_note"?}` — records `reviewed_at`, returns `review_transition` "OLD → NEW" (re-review allowed, always recorded). Audited `ZONE_REVIEWED` per transition (`404`, `422` invalid target) |
+| GET | `/intervention-zones/export?field_id=&review_status=&format=geojson\|csv` | Labelled download: filename `cropmind-zone-simulation-…`, GeoJSON carries a top-level `simulation` foreign member + per-feature properties, CSV starts with a `# … simulation` row + `simulation_label` column. `400` unknown format |
+| GET | `/fields/{id}/map-data` | One aggregate read for the map page: field (+boundary, farm name), latest ≤100 analyses with prediction summaries, zones, and `decision_support` (risk/review counts, pending count, up-to-3 first-priority pending zone ids, rule note: *review order, not an agronomic risk score*) (`404`) |
 
 ## 4. Lifecycle states
 
@@ -139,9 +172,9 @@ scoping. Every write is audited (`FARM_CREATED` / `FARM_UPDATED` / `FARM_DELETED
 
 | Code | Meaning here |
 |---|---|
-| 400 | Upload validation (empty, corrupt, declared/magic mismatch); invalid relation ids; unsupported `crop_id` (taxonomy whitelist, `allowed` listed); unknown analysis-status filter |
-| 404 | Unknown image / analysis / prediction / farm / field; stored Grad-CAM file missing |
-| 409 | Prediction or Grad-CAM requested before its analysis COMPLETED (includes current status + poll path); delete of a farm/field that still has dependents (carries the honest blocking counts) |
+| 400 | Upload validation (empty, corrupt, declared/magic mismatch); invalid relation ids; unsupported `crop_id` (taxonomy whitelist, `allowed` listed); unknown analysis-status / review-status filter / export format; invalid field boundary (precise validator reason) |
+| 404 | Unknown image / analysis / prediction / farm / field / intervention zone; stored Grad-CAM file missing |
+| 409 | Prediction, Grad-CAM or zone generation requested before its analysis COMPLETED (includes current status + poll path); delete of a farm/field that still has dependents (carries the honest blocking counts) |
 | 413 | Upload exceeds `MAX_UPLOAD_SIZE_MB` (enforced while streaming) |
 | 415 | Unrecognized image bytes (magic-byte sniff failed) |
 | 503 | `/health/ready` with database unreachable |
@@ -156,6 +189,9 @@ the audited registry record — it is not itself a re-verification). Idempotent.
 
 ## 7. What lands later (documented deltas)
 
-- **Phase 7:** `/intervention-zones`, zone review (APPROVED/REJECTED), GeoJSON/CSV export labelled "simulation".
 - **Phase 9:** `/reports` + `/reports/{id}/download` (ReportLab PDF with report IDs).
 - **Phase 10:** `/auth/*` (JWT, roles), per-user scoping, rate limiting, feedback capture.
+- **Geo growth (when a georeferenced source is ingested):** genuinely geographic zones arrive
+  only with a drone orthomosaic carrying a GeoTIFF transform (post-MVP geo milestone) —
+  only then does `georeference_source` become something other than `"none"` and
+  `est_area_ha` become computable (see §3.7 geo-honesty).
