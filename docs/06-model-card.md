@@ -130,8 +130,11 @@ flip is a **separate reviewed commit** with the report on record — nothing sel
 
 **Outcome (2026-08-09, report on record):** all **21 classes are eligible** — weakest
 in-domain F1 0.974 ≥ 0.90 (corn Cercospora/gray leaf spot, n=78); smallest support 24 ≥ 20
-(potato healthy); watchlist empty. The `supported_by_model` flip proceeds only as a separate
-reviewed commit referencing `reports/model_evaluation/summary.json`.
+(potato healthy); watchlist empty. The reviewed flip was executed as its own commit
+**`c9f454f`** (operator-approved, referencing `reports/model_evaluation/summary.json`):
+all 21 `supported_by_model` flags are now `true` in `ml/configs/taxonomy.yaml` v0.2, and
+`ml/configs/model.yaml` registers the baseline as **EVALUATED 0.1.0** — *not* PROMOTED
+(serving wiring is Phase 5), and `model_available` stays false until then.
 
 ## 6. Limitations (travel with the model, wherever it is cited)
 
