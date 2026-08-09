@@ -12,14 +12,19 @@
 
 ![CI](https://github.com/Vishwa-cloud25S/cropmind-ai/actions/workflows/ci.yml/badge.svg)
 
-> **Status: Phases 0–4 done — formal M1 gates measured 2026-08-09 (Gate C, operator CPU).**
+> **Status: Phases 0–5 done — backend core live (14-table schema, uploads pipeline, DB-backed
+> analysis queue + worker, `/images` `/analyses` `/predictions`); formal M1 gates measured 2026-08-09 (Gate C, operator CPU).**
 > Baseline run `20260808-180238-0.1.0`: in-domain held-out top-1 **0.9959** ✅ (≥ 0.80) ·
 > CPU latency **110.4 ms p95** ✅ (≤ 2,500 ms) · PlantDoc field OOD top-1 **0.2349** 🔶
 > (SHORTFALL vs 0.50 target — published as-is; both accuracy numbers travel together, always).
 > Details: docs/06-model-card.md §4.2.
-> The stack boots today (API + worker + frontend + Postgres), the landing page and API health/
-> model-truth endpoints are live, and CI runs lint + typecheck + tests + docker builds.
-> See [`docs/14-roadmap.md`](docs/14-roadmap.md) for the phase plan and what lands next.
+> The stack boots today: `docker compose up --build` brings up Postgres → API (migrates) →
+> worker (migrates + seeds dataset_sources + polls the queue) → frontend. With
+> `MODEL_CHECKPOINT` empty the worker runs the **clearly-flagged DEMO sample model**
+> (synthetic patterns — plumbing evidence, not a crop claim); point it at
+> `runs/20260808-180238-0.1.0/checkpoint.pt` for the evaluated baseline.
+> CI runs lint + typecheck + tests + docker builds. See
+> [`docs/14-roadmap.md`](docs/14-roadmap.md) for the phase plan and what lands next.
 
 ---
 
@@ -68,12 +73,17 @@ docker compose up --build
 - Web app → http://localhost:3000
 - API + OpenAPI docs → http://localhost:8000/docs
 - `GET /health`, `GET /health/ready`, `GET /supported-crops`, `GET /model-info`
+- **End-to-end demo (Phase 5):** `POST /images` a leaf photo → `POST /analyses {"image_id": "…"}` (202) →
+  poll `GET /analyses/{id}` → `GET /analyses/{id}/prediction`. The worker applies the
+  clearly-flagged **DEMO sample model** unless `MODEL_CHECKPOINT` points at a trained run
+  (`.env`, e.g. `/runs/20260808-180238-0.1.0/checkpoint.pt` — `./runs` is mounted read-only at `/runs`).
 
 Local dev without Docker (needs local Postgres for `/health/ready` to go green):
 
 ```bash
 cd backend  && python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
 uvicorn app.main:app --reload          # → :8000
+python -m app.workers.analysis_worker  # second shell: same backend venv; MODEL_CHECKPOINT unset = DEMO model
 
 cd frontend && npm install && npm run dev   # → :3000
 ```
@@ -158,10 +168,11 @@ working, not a bug.
 | [01 — Product requirements](docs/01-product-requirements.md) | ✅ Phase 0 |
 | [02 — System architecture](docs/02-system-architecture.md) | ✅ Phase 0 |
 | [Datasets & license register](docs/datasets.md) | ✅ Phase 0 |
-| [14 — Development roadmap](docs/14-roadmap.md) | ✅ Phase 0, updated through Phase 4 |
+| [14 — Development roadmap](docs/14-roadmap.md) | ✅ Phase 0, updated through Phase 5 |
 | [Taxonomy & model config](ml/configs) — what the model does/doesn't support | ✅ Phase 1 (live via `/supported-crops`, `/model-info`) |
 | [05 — ML pipeline](docs/05-ml-pipeline.md) · [06 — Model card](docs/06-model-card.md) · [07 — Data card](docs/07-data-card.md) | ✅ Phases 3–4 (v1; formal gates measured from the operator's eval report) |
-| API, security, privacy, testing, deployment, user guide, limitations, responsible-AI | Planned (Phases 5–13 per roadmap) |
+| [04 — API design](docs/04-api-design.md) | ✅ Phase 5 (synced with `backend/app/api/v1/`) |
+| Security, privacy, testing, deployment, user guide, limitations, responsible-AI | Planned (Phases 6–13 per roadmap) |
 
 ## License
 

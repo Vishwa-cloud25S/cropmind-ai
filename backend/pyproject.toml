@@ -4,3 +4,15 @@ target-version = "py312"
 
 [tool.ruff.lint]
 extend-select = ["I"]   # import sorting
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency/property-injection idiom is intentional (B008)
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Form",
+    "fastapi.Security",
+]

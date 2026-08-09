@@ -131,8 +131,9 @@ analyses 1—n intervention_zones, 1—1 report, 1—n feedback. Alembic migrati
 
 Implemented per spec §28 — auth, farms, fields, images, analyses, predictions, intervention-zones,
 feedback, reports (+download), health, model-info, supported-crops. Plus demo-mode aliases that skip
-auth for sample data only. Full contract lands in `docs/04-api-design.md` (Phase 5); FastAPI serves
-live OpenAPI at `/docs`.
+auth for sample data only. **Phase 5 delivered** health, model-info, supported-crops, images, analyses
+and predictions (full contract in `docs/04-api-design.md`; FastAPI serves live OpenAPI at `/docs`);
+auth, zones/feedback/reports routes land in Phases 7–10.
 
 ## 7. Background processing
 

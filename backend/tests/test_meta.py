@@ -13,8 +13,10 @@ def test_supported_crops_matches_taxonomy_config(client):
 
 def test_supported_crops_reports_model_unavailable_honestly(client):
     body = client.get("/supported-crops").json()
-    # Stays False until the serving stack loads the checkpoint (Phase 5) — even though a
-    # trained, evaluated run exists operator-locally. "Available" means wired LIVE.
+    # Stays False until a LIVE real-checkpoint serving run is recorded. Phase 5 wired the
+    # serving plumbing (worker loads MODEL_CHECKPOINT); but the default flow serves the
+    # flagged DEMO sample model and the real weights are operator-local (gitignored) —
+    # "available" means evidenced live, with that evidence in the repo.
     assert body["model_available"] is False
 
 
@@ -32,7 +34,8 @@ def test_supported_flags_true_after_published_evaluation(client):
 
 def test_model_info_reports_evaluated_baseline(client):
     body = client.get("/model-info").json()
-    # EVALUATED, not PROMOTED: gates measured (docs/06 §4.2); serving stack loads it in Phase 5.
+    # EVALUATED, not PROMOTED: gates measured (docs/06 §4.2); PROMOTED lands with
+    # deployment evidence in Phase 12 — Phase 5 wired the serving plumbing only.
     assert body["model"]["status"] == "EVALUATED"
     assert body["model"]["version"] == "0.1.0"
     bands = body["confidence_bands"]

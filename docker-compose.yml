@@ -39,16 +39,27 @@ services:
   worker:
     build:
       context: .
-      dockerfile: backend/Dockerfile
-    command: ["python", "-m", "app.workers.analysis_worker"]
+      dockerfile: backend/worker.Dockerfile
+    # Dockerfile CMD: alembic upgrade head -> seed dataset_sources -> poll the queue
     env_file:
       - ./.env
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-cropmind}:${POSTGRES_PASSWORD:-cropmind-local-only}@db:5432/${POSTGRES_DB:-cropmind}
-      ML_CONFIG_DIR: /app/ml_configs
+      ML_CONFIG_DIR: /app/ml/configs
       UPLOAD_DIR: /data/uploads
+      # Path to the real run's checkpoint.pt (e.g. runs/20260808-180238-0.1.0) mounted
+      # into the container, or EMPTY: empty => clearly-flagged DEMO sample model.
+      MODEL_CHECKPOINT: ${MODEL_CHECKPOINT:-}
+      WORKER_POLL_INTERVAL_S: ${WORKER_POLL_INTERVAL_S:-2.0}
+      JOB_MAX_ATTEMPTS: ${JOB_MAX_ATTEMPTS:-3}
+      JOB_HEARTBEAT_TIMEOUT_S: ${JOB_HEARTBEAT_TIMEOUT_S:-120}
+      JOB_RETRY_BACKOFF_S: ${JOB_RETRY_BACKOFF_S:-10.0}
     volumes:
       - uploads:/data/uploads
+      - mlmodels:/app/ml/models/pretrained  # reuse the deterministically generated DEMO checkpoint
+      # Real run checkpoints: download the run folder into ./runs (gitignored), then set
+      # MODEL_CHECKPOINT=/runs/<run-name>/checkpoint.pt — mounted read-only here.
+      - ./runs:/runs:ro
     depends_on:
       db:
         condition: service_healthy
@@ -70,3 +81,4 @@ services:
 volumes:
   pgdata:
   uploads:
+  mlmodels:
