@@ -89,6 +89,12 @@ Artifacts: `reports/model_evaluation/{REPORT.md, summary.json, confusion_*.png, 
 | M1-ood-top1 (PlantDoc) | published as-is, target ≥ 0.50 | 🔶 **SHORTFALL** | **0.2349** (real field imagery) |
 | M1-latency-cpu | p95 ≤ 2,500 ms/image | ✅ **PASS** | **110.4 ms p95** (classification path: preprocess + forward + bands; Grad-CAM runs only for exemplars and is excluded from the gate per the report's definition) |
 
+**Reproduction (second pass, 2026-08-09, operator-reported):** after the Windows exemplar
+re-run fix (`34efa33`) the full pipeline re-ran end-to-end on the same machine and
+regenerated identical deterministic values — in-domain **0.9959** PASS, OOD **0.2349**
+SHORTFALL — with latency **109.2 ms p95** (vs 110.4 first pass: CPU timing variance; both
+PASS by ~23×). The first-pass *file-verified* values above remain the recorded measurements.
+
 Notes: the OOD pass iterated the raw extracted PlantDoc **train/** tree (the images-root the
 pipeline selected — the tree with the 28 class folders): 17 folders map to V1 classes and the
 11 unmapped folders (865 images across other crops/conditions) are recorded as skipped —
