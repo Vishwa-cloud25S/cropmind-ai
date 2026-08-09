@@ -14,6 +14,7 @@ COPY backend/app ./app
 COPY backend/alembic ./alembic
 COPY backend/alembic.ini ./alembic.ini
 COPY ml/configs ./ml_configs
+COPY simulation ./simulation
 
 ENV ML_CONFIG_DIR=/app/ml_configs \
     UPLOAD_DIR=/data/uploads \

@@ -19,6 +19,7 @@ export default function SiteFooter() {
           <ul className="mt-3 space-y-2 text-sm text-stone-600">
             <li><Link href="/analyze" className="hover:text-emerald-900">Image analysis</Link></li>
             <li><Link href="/map" className="hover:text-emerald-900">Field mapping</Link></li>
+            <li><Link href="/simulate" className="hover:text-emerald-900">Spray simulator</Link></li>
             <li><Link href="/reports" className="hover:text-emerald-900">Field reports</Link></li>
             <li><Link href="/dashboard" className="hover:text-emerald-900">Farm dashboard</Link></li>
           </ul>

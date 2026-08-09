@@ -69,10 +69,12 @@ jobs:
       - name: Install ML deps
         run: pip install -r ml/requirements-dev.txt
       - name: Lint (ruff)
-        run: ruff check ml
+        run: ruff check ml simulation
       - name: ML pipeline tests
         working-directory: ml
         run: python -m pytest
+      - name: Simulation engine tests (pure stdlib)
+        run: python -m pytest simulation -p no:warnings -q
 
   docker:
     runs-on: ubuntu-latest

@@ -160,6 +160,28 @@ precision-intervention *simulations* pending human review.
 | GET | `/intervention-zones/export?field_id=&review_status=&format=geojson\|csv` | Labelled download: filename `cropmind-zone-simulation-…`, GeoJSON carries a top-level `simulation` foreign member + per-feature properties, CSV starts with a `# … simulation` row + `simulation_label` column. `400` unknown format |
 | GET | `/fields/{id}/map-data` | One aggregate read for the map page: field (+boundary, farm name), latest ≤100 analyses with prediction summaries, zones, and `decision_support` (risk/review counts, pending count, up-to-3 first-priority pending zone ids, rule note: *review order, not an agronomic risk score*) (`404`) |
 
+### 3.8 Simulator (Phase 8)
+
+**Simulation honesty.** The engine (`simulation/`, provider Protocols per docs/02 §8) does
+labelled arithmetic only: *areas the user marked × a rate the user declared*. Treatment
+polygons are user-drawn WGS84 validated exactly like field boundaries — image-space zones
+are never auto-scaled into hectares (they inform where the operator marks; §3.7). The rate
+is whatever the user types; non-positive rates are rejected (`422`) and the API never
+suggests one. Every run persists params + labelled result verbatim (migration `0004`) so any
+savings figure can be re-derived later — "files win" applies to simulation too. Engine rules
+(documented, deterministic): exact polygon areas in a planar anchor projection (
+error « 1% at field scale), boustrophedon route at swath centrelines, turns = straight joins
++ declared per-swath overhead, swath cap 2000 with the measured count in the error. A
+simulated drone provider proves the API→hardware seam and returns an intent receipt —
+**no aircraft exists** (`docs/02 §8`: real vendors plug in behind the same Protocols).
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/simulations/spray-plan` | **201** `{"simulation": {…params + labelled results…}}`. Body: `field_id`, `treatment_polygons` (1–50 WGS84 polygons), `spray_width_m` (0.25–50), `speed_mps` (0.1–30), `declared_rate_l_per_ha` (>0, ≤2000), `turn_overhead_s` (0–60 default 0). Results: exact areas (ha), treated fraction, swath count, spray-on/route lengths, est. time, blanket vs precision volumes, savings (labelled planning illustration), route GeoJSON, assumptions, provider receipt, engine version + honesty notice. **409** no drawn boundary · **404** unknown field · **400** polygon/geometry/engine constraint (reason verbatim: unclosed, outside boundary, overlap, measured swath cap). Audited `SIMULATION_RUN_CREATED` |
+| GET | `/simulations?field_id=&limit=&offset=` | Newest-first summaries `{"count", "simulations", "note"}` with `key_results` only (detail lives on the stored row) |
+| GET | `/simulations/{id}` | Full stored run — params + results as first served (`404`) |
+| GET | `/simulations/{id}/route.geojson` | Stored route download; filename + top-level member carry the simulation label (`404`) |
+
 ## 4. Lifecycle states
 
 | Row | States |
@@ -173,8 +195,8 @@ precision-intervention *simulations* pending human review.
 | Code | Meaning here |
 |---|---|
 | 400 | Upload validation (empty, corrupt, declared/magic mismatch); invalid relation ids; unsupported `crop_id` (taxonomy whitelist, `allowed` listed); unknown analysis-status / review-status filter / export format; invalid field boundary (precise validator reason) |
-| 404 | Unknown image / analysis / prediction / farm / field / intervention zone; stored Grad-CAM file missing |
-| 409 | Prediction, Grad-CAM or zone generation requested before its analysis COMPLETED (includes current status + poll path); delete of a farm/field that still has dependents (carries the honest blocking counts) |
+| 404 | Unknown image / analysis / prediction / farm / field / intervention zone / simulation run; stored Grad-CAM file missing |
+| 409 | Prediction, Grad-CAM or zone generation requested before its analysis COMPLETED (includes current status + poll path); delete of a farm/field that still has dependents (carries the honest blocking counts); spray simulation against a field with no drawn boundary |
 | 413 | Upload exceeds `MAX_UPLOAD_SIZE_MB` (enforced while streaming) |
 | 415 | Unrecognized image bytes (magic-byte sniff failed) |
 | 503 | `/health/ready` with database unreachable |

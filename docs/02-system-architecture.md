@@ -172,6 +172,10 @@ class TelemetryProvider(Protocol):
 
 Implementations in `simulation/`: `drone_simulator.py`, `spray_simulator.py`. Real vendor adapters
 plug in behind the same Protocols without touching the API (Phase 5 roadmap item, post-MVP).
+**Phase 8 delivered** the simulators: `spray_simulator.py` (exact-area planning, boustrophedon
+route, volumes + savings — SIMULATION-labelled with assumption echo) and `drone_simulator.py`
+(mission-intent receipts — no aircraft), persisted via `simulation_runs` (migration `0004`,
+15 tables total) and served at `/simulations/*`.
 
 ## 9. Security (summary — full doc Phase 11)
 

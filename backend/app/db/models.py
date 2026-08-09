@@ -1,4 +1,4 @@
-"""ORM models — 14-table schema per docs/02-system-architecture §5 (Phase 5).
+"""ORM models — 15-table schema per docs/02-system-architecture §5 (Phases 5+8).
 
 Portability rules (tests run on SQLite, production on PostgreSQL 16): no
 dialect-specific column types — GeoJSON is JSON, enums are portable CHECK-string
@@ -276,6 +276,26 @@ class DatasetSource(Base):
     verified_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True), nullable=True)
 
 
+class SimulationRun(Base):
+    """Stored simulator output (Phase 8): inputs + results verbatim, labelled.
+
+    Every savings figure the UI ever showed is reproducible from params_json +
+    the versioned engine (simulation/); result_json already carries the
+    simulation label + assumptions exactly as first served (files win).
+    """
+
+    __tablename__ = "simulation_runs"
+    id: Mapped[str] = mapped_column(_UUID, primary_key=True, default=_new_uuid)
+    run_kind: Mapped[str] = mapped_column(sa.Enum("SPRAY_PLAN", name="simulation_kind", native_enum=False))
+    field_id: Mapped[str] = mapped_column(_UUID, sa.ForeignKey("fields.id"), index=True)
+    mission_id: Mapped[str | None] = mapped_column(sa.String(40), nullable=True)  # simulated provider receipt
+    params_json: Mapped[dict] = mapped_column(_JSON)
+    result_json: Mapped[dict] = mapped_column(_JSON)
+    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), server_default=sa.func.now())
+
+    field: Mapped[Field] = relationship()
+
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
     id: Mapped[str] = mapped_column(_UUID, primary_key=True, default=_new_uuid)
@@ -291,5 +311,5 @@ class AuditLog(Base):
 ALL_TABLES = [
     "users", "farms", "fields", "images", "analyses", "analysis_jobs", "model_versions",
     "predictions", "detection_regions", "intervention_zones", "reports", "feedback",
-    "dataset_sources", "audit_logs",
+    "dataset_sources", "simulation_runs", "audit_logs",
 ]

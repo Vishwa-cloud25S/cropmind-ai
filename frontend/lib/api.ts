@@ -17,6 +17,8 @@ import type {
   ModelInfo,
   Prediction,
   PredictionList,
+  SimulationList,
+  SimulationRunDetail,
   SupportedCrops,
   ZoneGenerateResponse,
   ZoneList,
@@ -214,6 +216,34 @@ export const zoneExportUrl = (opts: { fieldId?: string; format: "geojson" | "csv
 export function getFieldMapData(fieldId: string): Promise<FieldMapData> {
   return request<FieldMapData>(`/fields/${fieldId}/map-data`);
 }
+
+// ── simulation (Phase 8) ──────────────────────────────────────────────────────
+
+export function runSprayPlan(body: {
+  field_id: string;
+  treatment_polygons: { type: "Polygon"; coordinates: number[][][] }[];
+  spray_width_m: number;
+  speed_mps: number;
+  declared_rate_l_per_ha: number;
+  turn_overhead_s: number;
+}): Promise<{ simulation: SimulationRunDetail }> {
+  return request<{ simulation: SimulationRunDetail }>("/simulations/spray-plan", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export function listSimulations(opts: { fieldId?: string; limit?: number } = {}): Promise<SimulationList> {
+  return request<SimulationList>(`/simulations${qs({ field_id: opts.fieldId, limit: opts.limit ?? 20 })}`);
+}
+
+export function getSimulation(simulationId: string): Promise<{ simulation: SimulationRunDetail }> {
+  return request<{ simulation: SimulationRunDetail }>(`/simulations/${simulationId}`);
+}
+
+export const simulationRouteUrl = (simulationId: string) =>
+  `${API_BASE}/simulations/${simulationId}/route.geojson`;
 
 // ── model truth ───────────────────────────────────────────────────────────────
 

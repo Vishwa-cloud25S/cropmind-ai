@@ -204,6 +204,77 @@ export interface FieldMapData {
   decision_support: DecisionSupport;
 }
 
+// ── Phase 8: simulation ───────────────────────────────────────────────────────
+
+export interface RouteFeature {
+  type: "Feature";
+  geometry: { type: "LineString"; coordinates: number[][] };
+  properties: { spray_on: boolean; length_m: number };
+}
+
+export interface SprayResults {
+  field_area_ha: number;
+  treated_area_ha: number;
+  untreated_area_ha: number;
+  treated_fraction: number;
+  swath_count: number;
+  spray_on_length_m: number;
+  route_length_m: number;
+  est_time_s: number;
+  blanket_volume_l: number;
+  precision_volume_l: number;
+  savings_volume_l: number;
+  savings_pct: number;
+  route_geojson: { type: "FeatureCollection"; simulation: string; features: RouteFeature[] };
+  simulation_label: string;
+  assumptions: string[];
+  provider_receipt: { provider: string; mission_id: string; status: string; note: string };
+  engine: { package: string; version: string };
+  honesty_notice: string;
+}
+
+export interface SprayPlanParams {
+  field_id: string;
+  boundary_geojson: { type: "Polygon"; coordinates: number[][][] };
+  treatment_polygons: { type: "Polygon"; coordinates: number[][][] }[];
+  spray_width_m: number;
+  speed_mps: number;
+  declared_rate_l_per_ha: number;
+  turn_overhead_s: number;
+}
+
+export interface SimulationRunDetail {
+  simulation_id: string;
+  run_kind: "SPRAY_PLAN";
+  field_id: string;
+  mission_id: string | null;
+  created_at: string | null;
+  simulation_label: string;
+  saved_inputs_echo: boolean;
+  params: SprayPlanParams;
+  results: SprayResults;
+}
+
+export interface SimulationSummary {
+  simulation_id: string;
+  run_kind: "SPRAY_PLAN";
+  field_id: string;
+  created_at: string | null;
+  simulation_label: string;
+  key_results: {
+    treated_fraction: number;
+    savings_pct: number;
+    savings_volume_l: number;
+    swath_count: number;
+  };
+}
+
+export interface SimulationList {
+  count: number;
+  simulations: SimulationSummary[];
+  note: string;
+}
+
 export interface ConfidenceBands {
   low: number;
   medium: number;
