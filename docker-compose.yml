@@ -22,7 +22,10 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     env_file:
-      - ./.env
+      # Optional: a missing .env must never block a first boot — every value below
+      # has an explicit default (demo mode runs with no .env at all).
+      - path: ./.env
+        required: false
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-cropmind}:${POSTGRES_PASSWORD:-cropmind-local-only}@db:5432/${POSTGRES_DB:-cropmind}
       ML_CONFIG_DIR: /app/ml_configs
@@ -50,7 +53,9 @@ services:
       dockerfile: backend/worker.Dockerfile
     # Dockerfile CMD: alembic upgrade head -> seed dataset_sources -> poll the queue
     env_file:
-      - ./.env
+      # Optional: see backend — demo defaults live in the environment block.
+      - path: ./.env
+        required: false
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-cropmind}:${POSTGRES_PASSWORD:-cropmind-local-only}@db:5432/${POSTGRES_DB:-cropmind}
       ML_CONFIG_DIR: /app/ml/configs
