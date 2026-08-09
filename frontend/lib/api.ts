@@ -6,6 +6,7 @@
 import type {
   AnalysisCreateResponse,
   AnalysisList,
+  AnalysisReportView,
   AnalysisStatus,
   Farm,
   FarmDetail,
@@ -17,6 +18,8 @@ import type {
   ModelInfo,
   Prediction,
   PredictionList,
+  ReportList,
+  ReportPayload,
   SimulationList,
   SimulationRunDetail,
   SupportedCrops,
@@ -258,6 +261,31 @@ export function getSupportedCrops(): Promise<SupportedCrops> {
 export function getReadiness(): Promise<{ status: string; database: string }> {
   return request<{ status: string; database: string }>("/health/ready");
 }
+
+// ── Phase 9: PDF field reports ────────────────────────────────────────────────
+
+/** Report state for the analysis view — 200 always for a known analysis (READY | GENERATE + why). */
+export function getAnalysisReportView(analysisId: string): Promise<AnalysisReportView> {
+  return request<AnalysisReportView>(`/analyses/${analysisId}/report`);
+}
+
+/** Explicit generation/regeneration (201). 409 detail carries the verbatim honesty reason. */
+export function generateReport(analysisId: string): Promise<{ report: ReportPayload; note: string }> {
+  return request<{ report: ReportPayload; note: string }>(`/analyses/${analysisId}/report`, {
+    method: "POST",
+  });
+}
+
+export function listReports(opts: { limit?: number; offset?: number } = {}): Promise<ReportList> {
+  return request<ReportList>(`/reports${qs({ limit: opts.limit, offset: opts.offset })}`);
+}
+
+export function getReport(reportId: string): Promise<{ report: ReportPayload }> {
+  return request<{ report: ReportPayload }>(`/reports/${reportId}`);
+}
+
+/** Direct PDF artifact URL (browser navigates/downloads; filename carries the human report ID). */
+export const reportDownloadUrl = (reportId: string) => `${API_BASE}/reports/${reportId}/download`;
 
 /** Extracts the most useful human-facing line from an ApiError for display. */
 export function errorMessage(error: unknown): string {

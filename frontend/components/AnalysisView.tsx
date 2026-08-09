@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ApiError, errorMessage, getAnalysis, getPredictionForAnalysis, gradcamUrl, imageDownloadUrl } from "@/lib/api";
 import type { AnalysisStatus, Prediction } from "@/lib/types";
 import PredictionCard from "@/components/PredictionCard";
+import ReportPanel from "@/components/ReportPanel";
 import { AnalysisStatusChip } from "@/components/StatusBadge";
 
 export interface AnalysisViewDeps {
@@ -154,6 +155,8 @@ export default function AnalysisView({ analysisId, ...props }: AnalysisViewDeps 
       </div>
 
       {prediction ? <PredictionCard prediction={prediction} /> : null}
+
+      {status.status === "COMPLETED" ? <ReportPanel analysisId={analysisId} analysisStatus={status.status} /> : null}
 
       {prediction ? (
         <section className="card" aria-label="Imagery">

@@ -39,16 +39,6 @@ const STUBS: Record<string, Stub> = {
     lede: "Single-field view with boundary and analysis history.",
     bullets: ["Draw/edit boundary on OpenStreetMap", "Upload imagery, run analysis", "Historical observations timeline"],
   },
-  reports: {
-    title: "Field reports",
-    phase: "Phase 9",
-    lede: "Downloadable PDF reports with everything needed for review.",
-    bullets: [
-      "Crop, field, date, image, condition, confidence, severity, zones",
-      "Model version + important limitations + human review status",
-      "Unique report ID for traceability",
-    ],
-  },
   settings: {
     title: "Settings",
     phase: "Phase 10",

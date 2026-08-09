@@ -182,6 +182,29 @@ simulated drone provider proves the API→hardware seam and returns an intent re
 | GET | `/simulations/{id}` | Full stored run — params + results as first served (`404`) |
 | GET | `/simulations/{id}/route.geojson` | Stored route download; filename + top-level member carry the simulation label (`404`) |
 
+### 3.9 Reports (Phase 9)
+
+**Report honesty.** A field report is the *printable record of stored evidence*, never a
+polished-up story: the Suspected phrasing travels verbatim from the stored prediction
+contract; INCONCLUSIVE renders as an explicit abstention ("the system ABSTAINED…", retake
+guidance, no zones by design); the zone section is a *review ledger* (PENDING / APPROVED /
+REJECTED per zone, with reviewer notes) carrying the image-space/georeference-none labels
+and no product, chemical or dosage content; demo analyses get a bold DEMO banner on page
+one. One report row per analysis: generation is explicit and audited; regeneration keeps
+the human `report_id` (`CMA-YYYYMMDD-XXXXXX`) and overwrites the same file so no stale
+copy survives silently — **files win**: the PDF under `upload_dir` is the artifact of
+record, API payloads are snapshots of its build basis. A SUSPECTED analysis cannot
+produce a report until its intervention zones exist (the full ledger must be on it);
+the 409 says so and points at zone generation.
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/analyses/{id}/report` | **201** — generate or regenerate the PDF. Response `{"report": {…full payload incl. build basis…}}`. **404** unknown analysis · **409** prediction not complete (`poll` included) or SUSPECTED-without-zones (actionable hint). Audited `REPORT_GENERATED` per generation |
+| GET | `/analyses/{id}/report` | Always 200 for a known analysis: `{"status": "READY", "report": {…}}` or `{"status": "GENERATE", "report": null, "why": …}` — the UI renders an explanation + Generate button instead of forcing a 404 flow (`404` unknown analysis) |
+| GET | `/reports?limit=&offset=` | Newest-first summaries `{"count", "total", "reports", "note"}` with `key_facts` (phrasing, prediction status, zone review totals) — light history surface; the file stays the artifact |
+| GET | `/reports/{id}` | Full payload including the build basis (`404`) |
+| GET | `/reports/{id}/download` | The PDF artifact; filename `cropmind-field-report-{report_id}.pdf` (`404` unknown, **409** file missing on disk with regenerate hint) |
+
 ## 4. Lifecycle states
 
 | Row | States |
@@ -189,14 +212,15 @@ simulated drone provider proves the API→hardware seam and returns an intent re
 | `analyses.status` | `QUEUED` → `PROCESSING` → `COMPLETED` \| `FAILED` |
 | `analysis_jobs.status` | `PENDING` → `RUNNING` → `COMPLETED` \| `FAILED` (terminal) \| back to `PENDING` (retry, `run_after` backoff) |
 | `intervention_zones.review_status` (Phase 7) | `PENDING` → `APPROVED` \| `REJECTED` |
+| `reports` (Phase 9) | no state machine — one row per analysis; `generated_at` refreshes on every explicit regeneration (human `report_id` stable) |
 
 ## 5. Error-code summary
 
 | Code | Meaning here |
 |---|---|
 | 400 | Upload validation (empty, corrupt, declared/magic mismatch); invalid relation ids; unsupported `crop_id` (taxonomy whitelist, `allowed` listed); unknown analysis-status / review-status filter / export format; invalid field boundary (precise validator reason) |
-| 404 | Unknown image / analysis / prediction / farm / field / intervention zone / simulation run; stored Grad-CAM file missing |
-| 409 | Prediction, Grad-CAM or zone generation requested before its analysis COMPLETED (includes current status + poll path); delete of a farm/field that still has dependents (carries the honest blocking counts); spray simulation against a field with no drawn boundary |
+| 404 | Unknown image / analysis / prediction / farm / field / intervention zone / simulation run / report; stored Grad-CAM file missing |
+| 409 | Prediction, Grad-CAM or zone generation requested before its analysis COMPLETED (includes current status + poll path); delete of a farm/field that still has dependents (carries the honest blocking counts); spray simulation against a field with no drawn boundary; report generation before its basis exists (prediction incomplete, or SUSPECTED without zones — actionable hint included); stored report PDF missing on disk (regenerate hint) |
 | 413 | Upload exceeds `MAX_UPLOAD_SIZE_MB` (enforced while streaming) |
 | 415 | Unrecognized image bytes (magic-byte sniff failed) |
 | 503 | `/health/ready` with database unreachable |
@@ -211,7 +235,6 @@ the audited registry record — it is not itself a re-verification). Idempotent.
 
 ## 7. What lands later (documented deltas)
 
-- **Phase 9:** `/reports` + `/reports/{id}/download` (ReportLab PDF with report IDs).
 - **Phase 10:** `/auth/*` (JWT, roles), per-user scoping, rate limiting, feedback capture.
 - **Geo growth (when a georeferenced source is ingested):** genuinely geographic zones arrive
   only with a drone orthomosaic carrying a GeoTIFF transform (post-MVP geo milestone) —

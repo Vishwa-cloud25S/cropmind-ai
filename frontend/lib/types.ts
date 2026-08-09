@@ -315,3 +315,91 @@ export interface SupportedCrops {
   crops: CropInfo[];
   disclaimer: string;
 }
+
+// ── Phase 9: PDF field reports (FR-19) ────────────────────────────────────────
+
+export interface ReportZoneFact {
+  id: string;
+  risk_level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  condition: string;
+  confidence: number;
+  severity: number | null;
+  review_status: "PENDING" | "APPROVED" | "REJECTED";
+  review_note: string | null;
+  reviewed_at: string | null;
+  coordinate_space: string;
+  georeference_source: string;
+}
+
+/** Everything printed on the PDF — a snapshot of stored state (files win). */
+export interface ReportBasis {
+  analysis_id: string;
+  analysis_status: string;
+  demo: boolean;
+  generated_at_utc: string;
+  prediction: {
+    phrasing: string;
+    status: PredictionState;
+    crop: string;
+    condition: string;
+    condition_name: string;
+    confidence: number;
+    band: "HIGH" | "MEDIUM" | "LOW" | null;
+    uncertainty: number;
+    severity: number | null;
+    severity_label: string;
+    latency_ms: number;
+    limitation_notice: string;
+    explainability_caveat: string;
+  };
+  model: { name: string; version: string; dataset_version: string | null; demo: boolean | null };
+  image: {
+    id: string;
+    captured_at: string | null;
+    width: number;
+    height: number;
+    source_type: string;
+    sha256_12: string;
+  };
+  field: { farm: string | null; name: string; crop_id: string | null; area_ha: number | null } | null;
+  zones: ReportZoneFact[];
+  zone_review_totals: Record<"PENDING" | "APPROVED" | "REJECTED", number>;
+}
+
+export interface ReportKeyFacts {
+  analysis_status: string;
+  prediction_status: string | null;
+  prediction_phrasing: string | null;
+  zones_total: number;
+  zone_review_totals: Record<"PENDING" | "APPROVED" | "REJECTED", number>;
+}
+
+export interface ReportPayload {
+  id: string;
+  report_id: string; // human-facing, e.g. CMA-20260809-AB12CD
+  analysis_id: string;
+  generated_at: string | null;
+  demo: boolean;
+  generator: { name: string; feature: string; version: string };
+  download_url: string;
+  hint: string;
+  basis?: ReportBasis; // present on full payloads
+  key_facts?: ReportKeyFacts; // present on list summaries
+}
+
+/**
+ * Analysis-scoped report state: READY carries the full payload; GENERATE means
+ * none exists yet (with a verbatim honesty reason in `why`) — never a 404 flow.
+ */
+export interface AnalysisReportView {
+  status: "READY" | "GENERATE";
+  report: ReportPayload | null;
+  why: string | null;
+}
+
+export interface ReportList {
+  count: number;
+  total: number;
+  reports: ReportPayload[];
+  note: string;
+}

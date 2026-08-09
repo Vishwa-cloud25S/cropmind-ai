@@ -12,12 +12,14 @@
 
 ![CI](https://github.com/Vishwa-cloud25S/cropmind-ai/actions/workflows/ci.yml/badge.svg)
 
-> **Status: Phases 0–8 done — backend core live (15-table schema, uploads pipeline, DB-backed
+> **Status: Phases 0–9 done — backend core live (15-table schema, uploads pipeline, DB-backed
 > analysis queue + worker, `/images` `/analyses` `/predictions` `/farms` `/fields` `/intervention-zones`
-> `/simulations`), the real frontend (dashboard, analyze wizard, analysis view with Grad-CAM, history,
-> farms/fields CRUD, model information), the field map (Leaflet/OSM boundaries, evidence-space zones,
-> human review, simulation-labelled exports) and the spray simulator (marked areas × declared rate —
-> SIMULATION-labelled, reproducibly stored); formal M1 gates measured 2026-08-09 (Gate C, operator CPU).**
+> `/simulations` `/reports`), the real frontend (dashboard, analyze wizard, analysis view with Grad-CAM,
+> history, farms/fields CRUD, model information), the field map (Leaflet/OSM boundaries, evidence-space
+> zones, human review, simulation-labelled exports), the spray simulator (marked areas × declared rate —
+> SIMULATION-labelled, reproducibly stored) and PDF field reports (Suspected phrasing verbatim, zone
+> review ledger, model version + limitations, unique `CMA-…` report ID); formal M1 gates measured
+> 2026-08-09 (Gate C, operator CPU).**
 > Baseline run `20260808-180238-0.1.0`: in-domain held-out top-1 **0.9959** ✅ (≥ 0.80) ·
 > CPU latency **110.4 ms p95** ✅ (≤ 2,500 ms) · PlantDoc field OOD top-1 **0.2349** 🔶
 > (SHORTFALL vs 0.50 target — published as-is; both accuracy numbers travel together, always).
@@ -76,7 +78,7 @@ docker compose up --build
 
 - Web app → http://localhost:3000 — real UI: `/dashboard`, `/analyze` (upload → analysis wizard),
   `/analyses` (history), `/farms`, `/map` (boundaries, zones, review + exports),
-  `/simulate` (spray-plan SIMULATION), `/model-information`
+  `/simulate` (spray-plan SIMULATION), `/reports` (PDF field reports), `/model-information`
 - API + OpenAPI docs → http://localhost:8000/docs
 - `GET /health`, `GET /health/ready`, `GET /supported-crops`, `GET /model-info`
 - **End-to-end demo (Phase 5):** `POST /images` a leaf photo → `POST /analyses {"image_id": "…"}` (202) →
@@ -175,7 +177,7 @@ working, not a bug.
 | [01 — Product requirements](docs/01-product-requirements.md) | ✅ Phase 0 |
 | [02 — System architecture](docs/02-system-architecture.md) | ✅ Phase 0 |
 | [Datasets & license register](docs/datasets.md) | ✅ Phase 0 |
-| [14 — Development roadmap](docs/14-roadmap.md) | ✅ Phase 0, updated through Phase 8 |
+| [14 — Development roadmap](docs/14-roadmap.md) | ✅ Phase 0, updated through Phase 9 |
 | [Taxonomy & model config](ml/configs) — what the model does/doesn't support | ✅ Phase 1 (live via `/supported-crops`, `/model-info`) |
 | [05 — ML pipeline](docs/05-ml-pipeline.md) · [06 — Model card](docs/06-model-card.md) · [07 — Data card](docs/07-data-card.md) | ✅ Phases 3–4 (v1; formal gates measured from the operator's eval report) |
 | [04 — API design](docs/04-api-design.md) | ✅ Phase 5 (synced with `backend/app/api/v1/`) |
