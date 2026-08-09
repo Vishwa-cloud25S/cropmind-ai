@@ -35,6 +35,14 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
+    healthcheck:
+      # Becomes healthy only AFTER this container's startup migration completes and
+      # uvicorn answers with DB reachable — so the worker's own (then no-op) migration
+      # can never race the API's on first boot.
+      test: ["CMD", "python", "-c", "import urllib.request as u;u.urlopen('http://localhost:8000/health/ready',timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
 
   worker:
     build:
@@ -64,7 +72,7 @@ services:
       db:
         condition: service_healthy
       backend:
-        condition: service_started
+        condition: service_healthy  # API's migration finished before we migrate+seed
 
   frontend:
     build:
