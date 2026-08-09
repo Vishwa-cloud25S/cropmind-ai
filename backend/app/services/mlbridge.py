@@ -24,6 +24,24 @@ _cache: dict[str, ModelHandle] = {}
 SAMPLE_CKPT = Path("ml/models/pretrained/sample-mobilenetv3.pt")
 
 
+def find_repo_root(start: Path | None = None) -> Path:
+    """Locate the repo root in BOTH layouts.
+
+    - local checkout: ``<repo>/backend/app/...`` (ml/ sits beside backend/)
+    - worker container: ``/app/app/...`` (Dockerfile COPYs backend/app → /app/app,
+      ml/ → /app/ml), so a hardcoded parents[N] lands on the filesystem root and
+      the sample-model subprocess exits instantly with "No module named ml"
+      (live failure caught on first Docker acceptance run 2026-08-09).
+    Walks upward until a directory contains the ml/configs marker; refuses to guess.
+    """
+    start = Path(start).resolve() if start else Path(__file__).resolve()
+    start_dir = start if start.is_dir() else start.parent
+    for candidate in [start_dir, *start_dir.parents]:
+        if (candidate / "ml" / "configs").is_dir():
+            return candidate
+    raise RuntimeError(f"repo root not found above {start} (no ml/configs marker)")
+
+
 @dataclass
 class ModelHandle:
     predictor: object  # ml.inference.predictor.Predictor (typed loosely: torch is worker-only)

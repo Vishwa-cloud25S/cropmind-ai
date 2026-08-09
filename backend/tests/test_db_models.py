@@ -6,6 +6,7 @@ alembic upgrade head (containers/production) — and required to agree on tables
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -63,17 +64,26 @@ def test_alembic_upgrade_downgrade_upgrade(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("DATABASE_URL", url)
     get_settings.cache_clear()  # engine for this test not yet created
 
-    command.upgrade(_alembic_cfg(), "head")
-    tables = _table_names(url)
-    assert set(models.ALL_TABLES) <= tables
-    assert "alembic_version" in tables
+    # Alembic env runs fileConfig(alembic.ini), whose [logger_root] claims the root
+    # logger's level for the rest of this process (in production, alembic CLI and the
+    # app are separate processes — containers — so this only matters in-tests).
+    root = logging.getLogger()
+    saved_level, saved_handlers = root.level, root.handlers[:]
+    try:
+        command.upgrade(_alembic_cfg(), "head")
+        tables = _table_names(url)
+        assert set(models.ALL_TABLES) <= tables
+        assert "alembic_version" in tables
 
-    command.downgrade(_alembic_cfg(), "base")
-    remaining = _table_names(url)
-    assert set(models.ALL_TABLES).isdisjoint(remaining)
+        command.downgrade(_alembic_cfg(), "base")
+        remaining = _table_names(url)
+        assert set(models.ALL_TABLES).isdisjoint(remaining)
 
-    command.upgrade(_alembic_cfg(), "head")  # idempotent re-run
-    assert set(models.ALL_TABLES) <= _table_names(url)
+        command.upgrade(_alembic_cfg(), "head")  # idempotent re-run
+        assert set(models.ALL_TABLES) <= _table_names(url)
+    finally:
+        root.setLevel(saved_level)
+        root.handlers[:] = saved_handlers
 
 
 def test_seed_dataset_sources_from_registry(db_session_factory) -> None:

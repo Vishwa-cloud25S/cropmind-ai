@@ -18,12 +18,13 @@ from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.session import get_session_factory
 from app.services import analysis as analysis_svc
-from app.services.mlbridge import ModelHandle, get_predictor
+from app.services.mlbridge import ModelHandle, find_repo_root, get_predictor
 from app.services.queue import LocalDbQueue
 
 logger = logging.getLogger("cropmind.worker")
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+# Both layouts supported (local checkout + /app worker container) — see find_repo_root.
+REPO_ROOT = find_repo_root()
 
 
 def tick(worker_id: str, *, handle: ModelHandle | None = None) -> int:

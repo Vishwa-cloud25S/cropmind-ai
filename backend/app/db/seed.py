@@ -16,16 +16,18 @@ from __future__ import annotations
 
 import logging
 import sys
-from pathlib import Path
 
 from sqlalchemy import select
 
 from app.db import models
 from app.db.session import get_session_factory
 
-# Repo root on sys.path for `ml.*` when invoked outside the repo root (e.g. backend/).
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-if (_REPO_ROOT / "ml").is_dir() and str(_REPO_ROOT) not in sys.path:
+# Repo root on sys.path for `ml.*` — marker-walk supports both the local checkout
+# and the worker container (/app) layouts (see find_repo_root).
+from app.services.mlbridge import find_repo_root
+
+_REPO_ROOT = find_repo_root()
+if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from ml.data.registry import REGISTRY
