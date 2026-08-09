@@ -4,10 +4,10 @@
 # there is no trained model yet. Out-of-domain coverage of the same crops exists in PlantDoc
 # (CC BY 4.0) for honest field-condition evaluation.
 
-version: "0.1"
-updated: "2026-08-08"
+version: "0.2"
+updated: "2026-08-09"
 model_available: false
-note: "No trained model yet (Phase 3). supported_by_model becomes true per-class only after evaluation is published in reports/model_evaluation/."
+note: "2026-08-09: supported_by_model true for all 21 classes — evidence reports/model_evaluation/summary.json (run 20260808-180238-0.1.0): every class held-out F1 >= 0.90 with support >= 20 (weakest F1 0.974 corn_cercospora_gray_leaf_spot n=78; smallest support 24 potato_healthy). These are in-domain support statements under INCONCLUSIVE banding; the PlantDoc field OOD top-1 0.2349 (coverage 17/21) is published alongside in docs/06-model-card.md. model_available stays false until the serving stack loads the checkpoint (Phase 5)."
 
 crops:
   - crop_id: tomato
@@ -15,45 +15,45 @@ crops:
     scientific_name: Solanum lycopersicum
     status: PLANNED
     conditions:
-      - { disease_id: tomato_bacterial_spot, name: "Bacterial spot", description: "Bacterial leaf/fruit spotting (Xanthomonas spp.).", dataset_source: plantvillage, supported_by_model: false, confidence_threshold: 0.60 }
-      - { disease_id: tomato_early_blight, name: "Early blight", description: "Concentric-ring lesions (Alternaria solani).", dataset_source: plantvillage, supported_by_model: false, confidence_threshold: 0.60 }
-      - { disease_id: tomato_late_blight, name: "Late blight", description: "Water-soaked lesions, rapid spread (Phytophthora infestans).", dataset_source: plantvillage, supported_by_model: false, confidence_threshold: 0.60 }
-      - { disease_id: tomato_leaf_mold, name: "Leaf Mold", description: "Yellow upper-leaf patches, olive mold below.", dataset_source: plantvillage, supported_by_model: false, confidence_threshold: 0.60 }
-      - { disease_id: tomato_septoria_leaf_spot, name: "Septoria leaf spot", description: "Small circular spots with dark borders.", dataset_source: plantvillage, supported_by_model: false, confidence_threshold: 0.60 }
-      - { disease_id: tomato_spider_mites, name: "Two-spotted spider mite damage", description: "Stippling/bronzing from mite feeding (pest, not pathogen).", dataset_source: plantvillage, supported_by_model: false, confidence_threshold: 0.60 }
-      - { disease_id: tomato_target_spot, name: "Target Spot", description: "Necrotic spots with yellow halos (Corynespora cassiicola).", dataset_source: plantvillage, supported_by_model: false, confidence_threshold: 0.60 }
-      - { disease_id: tomato_yellow_leaf_curl_virus, name: "Yellow Leaf Curl Virus", description: "Upward curl, yellowing; whitefly-transmitted.", dataset_source: plantvillage, supported_by_model: false, confidence_threshold: 0.60 }
-      - { disease_id: tomato_mosaic_virus, name: "Mosaic virus", description: "Mottled light/dark green leaf patterning.", dataset_source: plantvillage, supported_by_model: false, confidence_threshold: 0.60 }
-      - { disease_id: tomato_healthy, name: "Healthy", description: "No visible disease symptoms.", dataset_source: plantvillage, supported_by_model: false, confidence_threshold: null }
+      - { disease_id: tomato_bacterial_spot, name: "Bacterial spot", description: "Bacterial leaf/fruit spotting (Xanthomonas spp.).", dataset_source: plantvillage, supported_by_model: true, confidence_threshold: 0.60 }
+      - { disease_id: tomato_early_blight, name: "Early blight", description: "Concentric-ring lesions (Alternaria solani).", dataset_source: plantvillage, supported_by_model: true, confidence_threshold: 0.60 }
+      - { disease_id: tomato_late_blight, name: "Late blight", description: "Water-soaked lesions, rapid spread (Phytophthora infestans).", dataset_source: plantvillage, supported_by_model: true, confidence_threshold: 0.60 }
+      - { disease_id: tomato_leaf_mold, name: "Leaf Mold", description: "Yellow upper-leaf patches, olive mold below.", dataset_source: plantvillage, supported_by_model: true, confidence_threshold: 0.60 }
+      - { disease_id: tomato_septoria_leaf_spot, name: "Septoria leaf spot", description: "Small circular spots with dark borders.", dataset_source: plantvillage, supported_by_model: true, confidence_threshold: 0.60 }
+      - { disease_id: tomato_spider_mites, name: "Two-spotted spider mite damage", description: "Stippling/bronzing from mite feeding (pest, not pathogen).", dataset_source: plantvillage, supported_by_model: true, confidence_threshold: 0.60 }
+      - { disease_id: tomato_target_spot, name: "Target Spot", description: "Necrotic spots with yellow halos (Corynespora cassiicola).", dataset_source: plantvillage, supported_by_model: true, confidence_threshold: 0.60 }
+      - { disease_id: tomato_yellow_leaf_curl_virus, name: "Yellow Leaf Curl Virus", description: "Upward curl, yellowing; whitefly-transmitted.", dataset_source: plantvillage, supported_by_model: true, confidence_threshold: 0.60 }
+      - { disease_id: tomato_mosaic_virus, name: "Mosaic virus", description: "Mottled light/dark green leaf patterning.", dataset_source: plantvillage, supported_by_model: true, confidence_threshold: 0.60 }
+      - { disease_id: tomato_healthy, name: "Healthy", description: "No visible disease symptoms.", dataset_source: plantvillage, supported_by_model: true, confidence_threshold: null }
 
   - crop_id: potato
     name: Potato
     scientific_name: Solanum tuberosum
     status: PLANNED
     conditions:
-      - { disease_id: potato_early_blight, name: "Early blight", description: "Target-like lesions (Alternaria solani).", dataset_source: plantvillage, supported_by_model: false, confidence_threshold: 0.60 }
-      - { disease_id: potato_late_blight, name: "Late blight", description: "Water-soaked lesions (Phytophthora infestans) — historically devastating.", dataset_source: plantvillage, supported_by_model: false, confidence_threshold: 0.60 }
-      - { disease_id: potato_healthy, name: "Healthy", description: "No visible disease symptoms.", dataset_source: plantvillage, supported_by_model: false, confidence_threshold: null }
+      - { disease_id: potato_early_blight, name: "Early blight", description: "Target-like lesions (Alternaria solani).", dataset_source: plantvillage, supported_by_model: true, confidence_threshold: 0.60 }
+      - { disease_id: potato_late_blight, name: "Late blight", description: "Water-soaked lesions (Phytophthora infestans) — historically devastating.", dataset_source: plantvillage, supported_by_model: true, confidence_threshold: 0.60 }
+      - { disease_id: potato_healthy, name: "Healthy", description: "No visible disease symptoms.", dataset_source: plantvillage, supported_by_model: true, confidence_threshold: null }
 
   - crop_id: corn
     name: Corn (maize)
     scientific_name: Zea mays
     status: PLANNED
     conditions:
-      - { disease_id: corn_cercospora_gray_leaf_spot, name: "Cercospora / Gray leaf spot", description: "Rectangular grey-tan lesions between veins.", dataset_source: plantvillage, supported_by_model: false, confidence_threshold: 0.60 }
-      - { disease_id: corn_common_rust, name: "Common rust", description: "Cinnamon-brown pustules on leaves (Puccinia sorghi).", dataset_source: plantvillage, supported_by_model: false, confidence_threshold: 0.60 }
-      - { disease_id: corn_northern_leaf_blight, name: "Northern Leaf Blight", description: "Cigar-shaped lesions (Exserohilum turcicum).", dataset_source: plantvillage, supported_by_model: false, confidence_threshold: 0.60 }
-      - { disease_id: corn_healthy, name: "Healthy", description: "No visible disease symptoms.", dataset_source: plantvillage, supported_by_model: false, confidence_threshold: null }
+      - { disease_id: corn_cercospora_gray_leaf_spot, name: "Cercospora / Gray leaf spot", description: "Rectangular grey-tan lesions between veins.", dataset_source: plantvillage, supported_by_model: true, confidence_threshold: 0.60 }
+      - { disease_id: corn_common_rust, name: "Common rust", description: "Cinnamon-brown pustules on leaves (Puccinia sorghi).", dataset_source: plantvillage, supported_by_model: true, confidence_threshold: 0.60 }
+      - { disease_id: corn_northern_leaf_blight, name: "Northern Leaf Blight", description: "Cigar-shaped lesions (Exserohilum turcicum).", dataset_source: plantvillage, supported_by_model: true, confidence_threshold: 0.60 }
+      - { disease_id: corn_healthy, name: "Healthy", description: "No visible disease symptoms.", dataset_source: plantvillage, supported_by_model: true, confidence_threshold: null }
 
   - crop_id: apple
     name: Apple
     scientific_name: Malus domestica
     status: PLANNED
     conditions:
-      - { disease_id: apple_scab, name: "Apple scab", description: "Olive-green to black lesions (Venturia inaequalis).", dataset_source: plantvillage, supported_by_model: false, confidence_threshold: 0.60 }
-      - { disease_id: apple_black_rot, name: "Black rot", description: "Circular brown lesions (Botryosphaeria obtusa).", dataset_source: plantvillage, supported_by_model: false, confidence_threshold: 0.60 }
-      - { disease_id: apple_cedar_rust, name: "Cedar apple rust", description: "Bright orange-yellow spots (Gymnosporangium juniperi-virginianae).", dataset_source: plantvillage, supported_by_model: false, confidence_threshold: 0.60 }
-      - { disease_id: apple_healthy, name: "Healthy", description: "No visible disease symptoms.", dataset_source: plantvillage, supported_by_model: false, confidence_threshold: null }
+      - { disease_id: apple_scab, name: "Apple scab", description: "Olive-green to black lesions (Venturia inaequalis).", dataset_source: plantvillage, supported_by_model: true, confidence_threshold: 0.60 }
+      - { disease_id: apple_black_rot, name: "Black rot", description: "Circular brown lesions (Botryosphaeria obtusa).", dataset_source: plantvillage, supported_by_model: true, confidence_threshold: 0.60 }
+      - { disease_id: apple_cedar_rust, name: "Cedar apple rust", description: "Bright orange-yellow spots (Gymnosporangium juniperi-virginianae).", dataset_source: plantvillage, supported_by_model: true, confidence_threshold: 0.60 }
+      - { disease_id: apple_healthy, name: "Healthy", description: "No visible disease symptoms.", dataset_source: plantvillage, supported_by_model: true, confidence_threshold: null }
 
 limitations:
   - "Lab-style leaf imagery (PlantVillage) differs from field conditions — out-of-domain accuracy is measured and published on PlantDoc."

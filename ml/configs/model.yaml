@@ -2,17 +2,17 @@
 # Confidence bands and thresholds are CONFIGURATION, never hardcoded in inference code (spec §10).
 # Values change only with recorded evaluation evidence (reports/model_evaluation/).
 
-version: "0.1"
-updated: "2026-08-08"
+version: "0.1"                         # identity of the THRESHOLD SET (embedded in every prediction as threshold_version); unchanged because the bands are unchanged
+updated: "2026-08-09"
 
 model:
   name: cropmind-leaf-classifier
   implementation: mobilenet_v3_small   # torchvision transfer-learned baseline (Phase 3)
-  version: "0.0.0"                     # no checkpoint exists yet — honest status below
-  status: NOT_TRAINED                  # NOT_TRAINED | TRAINING | EVALUATED | PROMOTED | RETIRED
-  checkpoint: null                     # phase 3: uri + sha256 recorded in model_versions after a real run
-  training_datasets: []                # phase 3+: e.g. [{source: plantvillage, version: mendeley-v1, subset: [tomato, potato, corn, apple]}]
-  notes: "Baseline defined in docs/01-product-requirements.md (M1). Weights are never committed to git."
+  version: "0.1.0"                     # baseline run 20260808-180238-0.1.0 (Colab T4; checkpoint embedded meta agrees)
+  status: EVALUATED                    # NOT_TRAINED | TRAINING | EVALUATED | PROMOTED | RETIRED — PROMOTED only when the serving stack loads it (Phase 5)
+  checkpoint: "operator-local runs/20260808-180238-0.1.0/checkpoint.pt (gitignored; byte sha256 77d6e020179e010bc8e16cf60506c1242377b482ea14f32a257401d4f2afe2be; recorded pre-embedding sha256 8af96dcfd32cdcdb75bd2dafdd3654675e7792f033e09382f20898205f286b7f — save protocol documented in docs/06-model-card.md §2)"
+  training_datasets: [{source: plantvillage, version: mendeley-v1, subset: [tomato, potato, corn, apple], split_version: v1}]
+  notes: "M1 baseline (docs/01 §6) trained and EVALUATED per reports/model_evaluation/summary.json — gates: in-domain top-1 0.9959 PASS; CPU latency p95 110.4 ms PASS; PlantDoc OOD top-1 0.2349 SHORTFALL (published as-is, never tuned). Weights are never committed to git."
 
 demo_sample:
   checkpoint: ml/models/pretrained/sample-mobilenetv3.pt   # gitignored; regenerate via python -m ml.training.sample_model
