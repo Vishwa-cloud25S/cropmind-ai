@@ -1,6 +1,7 @@
 """Phase 4 evaluation tests: pure math + gate logic + full CLI integration on a toy run."""
 
 import json
+import uuid
 from pathlib import Path
 
 import numpy as np
@@ -9,7 +10,7 @@ import torch
 import yaml
 from PIL import Image
 
-from ml.evaluation import cli, core, runner
+from ml.evaluation import cli, core, report, runner
 from ml.training.classes import class_list
 from ml.training.model import build_model
 
@@ -217,3 +218,40 @@ def test_cli_report_end_to_end(toy_run_dir, tmp_path, capsys):
     assert "python -m ml.evaluation.cli report" in md
     printed = capsys.readouterr().out
     assert "gate M1-in-domain-top1:" in printed
+
+
+# ---------------- report: exemplar materialization (Windows re-run regression) ----------------
+class _StubExemplarPredictor:
+    """Predictor-shaped stub: writes a fresh uuid-named overlay per call, like the real one."""
+
+    def predict(self, path, explain_dir=None, top_k=3):
+        overlay = Path(explain_dir) / f"{uuid.uuid4().hex[:12]}-gradcam.png"
+        overlay.write_bytes(b"faux-overlay")
+        return {"gradcam_overlay": str(overlay)}
+
+
+def _leaf(tmp_path, name):
+    p = tmp_path / name
+    Image.new("RGB", (16, 16), (7, 90, 30)).save(p)
+    return {
+        "path": str(p), "ground_truth": "apple_healthy", "predicted": "tomato_healthy",
+        "confidence": 0.5, "status": "SUSPECTED",
+    }
+
+
+def test_materialize_exemplars_rerun_overwrites_and_drops_stale(tmp_path):
+    """Gate C crashed here on Windows re-runs: Path.rename refuses an existing target
+    (WinError 183), and a shorter new exemplar set must never leave older-run files behind."""
+    ex_dir = tmp_path / "out" / "exemplars"
+    picked3 = [_leaf(tmp_path, f"a{i}.jpg") for i in range(3)]
+    captions1 = report.materialize_exemplars(_StubExemplarPredictor(), picked3, ex_dir)
+    assert len(captions1) == 3
+    assert len(list(ex_dir.glob("*-gradcam.png"))) == 3
+
+    picked1 = [_leaf(tmp_path, "b0.jpg")]
+    captions2 = report.materialize_exemplars(_StubExemplarPredictor(), picked1, ex_dir)  # must not raise
+    assert len(captions2) == 1
+    names = sorted(p.name for p in ex_dir.iterdir())
+    assert names == ["00-gradcam.png", "00-orig.png", "captions.json"]  # stale 01-/02- artifacts gone
+    written = json.loads((ex_dir / "captions.json").read_text(encoding="utf-8"))
+    assert len(written) == 1 and written[0]["source_path"] == picked1[0]["path"]

@@ -54,6 +54,12 @@ def materialize_exemplars(predictor: Predictor, picked: list[dict], ex_dir: Path
     """Re-predict selected images WITH Grad-CAM artifacts; copy thumbnails + captions."""
     ex_dir = Path(ex_dir)
     ex_dir.mkdir(parents=True, exist_ok=True)
+    # Idempotent re-runs (Gate C re-runs the eval on the same output dir): drop this
+    # run's artifact set first. Windows rename refuses existing targets (WinError 183),
+    # and stale exemplars from an older run must never mix into this run's report.
+    for stale in ex_dir.glob("*.png"):
+        stale.unlink()
+    (ex_dir / "captions.json").unlink(missing_ok=True)
     captions = []
     for k, rec in enumerate(picked):
         pred = predictor.predict(rec["path"], explain_dir=ex_dir, top_k=3)
@@ -61,7 +67,7 @@ def materialize_exemplars(predictor: Predictor, picked: list[dict], ex_dir: Path
         overlay_name = None
         if overlay_src and overlay_src.exists():
             overlay_name = f"{k:02d}-gradcam.png"
-            overlay_src.rename(ex_dir / overlay_name)
+            overlay_src.replace(ex_dir / overlay_name)  # os.replace: overwrite-safe Windows+POSIX
         orig = Image.open(windows_safe(rec["path"])).convert("RGB")  # no-op on short/POSIX paths
         orig.thumbnail((416, 416))
         orig_name = f"{k:02d}-orig.png"
