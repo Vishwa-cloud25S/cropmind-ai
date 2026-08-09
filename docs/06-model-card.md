@@ -90,11 +90,15 @@ be corrected to the file values (files win, always).
 | M1-ood-top1 (PlantDoc) | published as-is, target ≥ 0.50 | 🔶 **SHORTFALL** | **0.2349** (real field imagery) |
 | M1-latency-cpu | p95 ≤ 2,500 ms/image | ✅ **PASS** | **110.4 ms p95** (full production path incl. Grad-CAM per image) |
 
-Notes: the OOD pass iterated the raw extracted PlantDoc tree (1,477 files); the operator
-split/stats report counts 1,474 across the 17 mapped classes — the 3-file delta is being
-reconciled from the plantdoc stats/provenance records (attachment pending). The SHORTFALL
-status is the designed honesty checkpoint for the domain gap (see §6 limitations): a
-published fact, not a failed certification — and it motivates the roadmap's field-data work.
+Notes: the OOD pass iterated the raw extracted PlantDoc **train/** tree (the images-root the
+pipeline selected — the tree with the 28 class folders; 17 map to V1 classes, the rest are
+recorded out-of-scope and never claimed): 1,477 files, of which 93 had been renamed at
+extraction for filesystem safety/clash (all recorded verbatim in the plantdoc
+`PROVENANCE.json` under `extraction`). The operator split/stats report counts 1,474 across
+the 17 mapped classes — the 3-file delta is reconciled against `summary.json` (pending; the
+file value wins). The SHORTFALL status is the designed honesty checkpoint for the domain
+gap (see §6 limitations): a published fact, not a failed certification — and it motivates
+the roadmap's field-data work.
 
 ## 5. Support rule for classes
 

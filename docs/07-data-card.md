@@ -48,12 +48,20 @@ verification log lives in `docs/datasets.md`; this card is the model-facing data
 
 - **Source:** Singh et al., CoDS-COMAD 2020 (IIT Gandhinagar),
   `github.com/pratikkayal/PlantDoc-Dataset`; **CC BY 4.0** (LICENSE.txt fetched verbatim).
-- **Member-name safety (recorded):** a handful of archive members carry filenames Windows
-  forbids (e.g. `IMG_1629.JPG?1507122477.jpg` — a Picasa cache suffix baked into the name).
-  Extraction renames them deterministically (`?` → `_`, applied identically on every OS);
-  distinct members clashing case-insensitively (`car1.jpg` vs `CAR1.jpg` — two real,
-  different images) are kept with deterministic `~2`/`~3`… suffixes. Every rename is logged
-  and recorded in `PROVENANCE.json` under `extraction` (`renamed_count` + examples); nothing
+- **Acquisition (recorded 2026-08-08/09, operator run):** auto-download OK (GitHub archive,
+  one candidate tried, cached archive reused for the final import); archive sha256
+  `345548bb3659519f425608b428d8a2ca338032b7b02c3cb3c3bb2954fc8986d9`, 984,413,268 bytes;
+  `images_root` = the dataset's **train/** tree (chosen by the images-root finder — it holds
+  the 28 class folders); full tree 2,333 images → 1,474 in the 17 mapped classes →
+  deterministic v1 splits (train 1,023 / val 214 / test 237, stats report
+  `reports/datasets/plantdoc-stats.md`). The OOD evaluation pass iterated **1,477** raw-tree
+  files; the 3-file delta vs the mapped total is reconciled against `summary.json` (pending).
+- **Member-name safety (recorded):** **93 archive members renamed at extraction** — filenames
+  Windows forbids (e.g. `IMG_1629.JPG?1507122477.jpg` — a Picasa cache suffix baked into the
+  name) sanitized deterministically (`?` → `_`, identical on every OS), and distinct members
+  clashing case-insensitively (`car1.jpg` vs `CAR1.jpg` — two real, different images) kept
+  with deterministic `~2`/`~3`… suffixes. Every rename is logged + recorded verbatim in
+  `PROVENANCE.json` under `extraction` (`renamed_count: 93`, examples, policy text); nothing
   is ever dropped or overwritten silently (2026-08-09, found by Gate C operator run).
   Attribution: "Singh, D., Jain, N., Jain, P., Kayal, P., Kumawat, S., & Batra, N. (2020).
   PlantDoc: A Dataset for Visual Plant Disease Detection. CoDS-COMAD 2020. (CC BY 4.0)".
