@@ -66,7 +66,7 @@ cropmind-ai/
 Requires Docker (everything: frontend, API, worker, Postgres):
 
 ```bash
-cp .env.example .env          # local dev defaults, no secrets needed for local
+cp .env.example .env          # OPTIONAL — only to override defaults; demo mode boots with no .env at all
 docker compose up --build
 ```
 
