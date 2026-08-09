@@ -50,7 +50,9 @@ class User(Base):
 class Farm(Base):
     __tablename__ = "farms"
     id: Mapped[str] = mapped_column(_UUID, primary_key=True, default=_new_uuid)
-    owner_id: Mapped[str] = mapped_column(_UUID, sa.ForeignKey("users.id"), index=True)
+    # Nullable until Phase 10 auth assigns real owners (migration 0002 made it nullable;
+    # Phase 10 backfills and tightens again).
+    owner_id: Mapped[str | None] = mapped_column(_UUID, sa.ForeignKey("users.id"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(sa.String(200))
     location: Mapped[str | None] = mapped_column(sa.String(300), nullable=True)
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), server_default=sa.func.now())

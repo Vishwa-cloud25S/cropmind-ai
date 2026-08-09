@@ -12,8 +12,10 @@
 
 ![CI](https://github.com/Vishwa-cloud25S/cropmind-ai/actions/workflows/ci.yml/badge.svg)
 
-> **Status: Phases 0–5 done — backend core live (14-table schema, uploads pipeline, DB-backed
-> analysis queue + worker, `/images` `/analyses` `/predictions`); formal M1 gates measured 2026-08-09 (Gate C, operator CPU).**
+> **Status: Phases 0–6 done — backend core live (14-table schema, uploads pipeline, DB-backed
+> analysis queue + worker, `/images` `/analyses` `/predictions` `/farms` `/fields`) and the real
+> frontend (dashboard, analyze wizard, analysis view with Grad-CAM, history, farms/fields CRUD,
+> model information); formal M1 gates measured 2026-08-09 (Gate C, operator CPU).**
 > Baseline run `20260808-180238-0.1.0`: in-domain held-out top-1 **0.9959** ✅ (≥ 0.80) ·
 > CPU latency **110.4 ms p95** ✅ (≤ 2,500 ms) · PlantDoc field OOD top-1 **0.2349** 🔶
 > (SHORTFALL vs 0.50 target — published as-is; both accuracy numbers travel together, always).
@@ -70,7 +72,8 @@ cp .env.example .env          # OPTIONAL — only to override defaults; demo mod
 docker compose up --build
 ```
 
-- Web app → http://localhost:3000
+- Web app → http://localhost:3000 — real UI: `/dashboard`, `/analyze` (upload → analysis wizard),
+  `/analyses` (history), `/farms`, `/model-information`
 - API + OpenAPI docs → http://localhost:8000/docs
 - `GET /health`, `GET /health/ready`, `GET /supported-crops`, `GET /model-info`
 - **End-to-end demo (Phase 5):** `POST /images` a leaf photo → `POST /analyses {"image_id": "…"}` (202) →
@@ -92,7 +95,7 @@ Tests and lint:
 
 ```bash
 cd backend  && python -m pytest -q && ruff check .
-cd frontend && npm run lint && npm run typecheck && npm run build
+cd frontend && npm run lint && npm run typecheck && npm test && npm run build
 cd ml       && python -m pytest -q
 ```
 
@@ -168,7 +171,7 @@ working, not a bug.
 | [01 — Product requirements](docs/01-product-requirements.md) | ✅ Phase 0 |
 | [02 — System architecture](docs/02-system-architecture.md) | ✅ Phase 0 |
 | [Datasets & license register](docs/datasets.md) | ✅ Phase 0 |
-| [14 — Development roadmap](docs/14-roadmap.md) | ✅ Phase 0, updated through Phase 5 |
+| [14 — Development roadmap](docs/14-roadmap.md) | ✅ Phase 0, updated through Phase 6 |
 | [Taxonomy & model config](ml/configs) — what the model does/doesn't support | ✅ Phase 1 (live via `/supported-crops`, `/model-info`) |
 | [05 — ML pipeline](docs/05-ml-pipeline.md) · [06 — Model card](docs/06-model-card.md) · [07 — Data card](docs/07-data-card.md) | ✅ Phases 3–4 (v1; formal gates measured from the operator's eval report) |
 | [04 — API design](docs/04-api-design.md) | ✅ Phase 5 (synced with `backend/app/api/v1/`) |

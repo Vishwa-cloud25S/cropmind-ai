@@ -50,4 +50,58 @@
   .pipeline-token {
     @apply whitespace-nowrap rounded-md border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs font-semibold tracking-wide text-stone-700;
   }
+
+  /* ── Phase 6: forms, status chips, tables, alerts (honesty presentational set) ─ */
+  .field-label {
+    @apply block text-xs font-semibold uppercase tracking-wider text-stone-500;
+  }
+  .input {
+    @apply mt-1 block w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 shadow-sm transition focus:border-emerald-800 focus:ring-1 focus:ring-emerald-800;
+  }
+  /* Confidence bands: text always accompanies colour (accessibility rule). */
+  .chip-high {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-emerald-800/30 bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900;
+  }
+  .chip-medium {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-amber-700/30 bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900;
+  }
+  .chip-low {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-orange-700/30 bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-900;
+  }
+  .chip-muted {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-stone-400/40 bg-stone-200 px-3 py-1 text-xs font-semibold text-stone-700;
+  }
+  .chip-info {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-sky-700/30 bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-900;
+  }
+  .alert-info {
+    @apply rounded-lg border border-emerald-800/20 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-900;
+  }
+  .alert-caution {
+    @apply rounded-lg border border-amber-700/25 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900;
+  }
+  .alert-error {
+    @apply rounded-lg border border-red-700/25 bg-red-50 px-4 py-3 text-sm leading-6 text-red-900;
+  }
+  .table-basic {
+    @apply w-full border-collapse text-left text-sm;
+  }
+  .table-basic thead th {
+    @apply border-b border-stone-300 pb-2 pr-4 text-xs font-semibold uppercase tracking-wider text-stone-500;
+  }
+  .table-basic tbody td {
+    @apply border-b border-stone-200 py-2.5 pr-4 align-top text-stone-800;
+  }
+  .link-cta {
+    @apply font-semibold text-emerald-800 underline decoration-emerald-800/40 underline-offset-2 transition hover:text-emerald-900;
+  }
+  .stat-card {
+    @apply rounded-lg border border-stone-200 bg-stone-50 px-4 py-3;
+  }
+  .btn-danger {
+    @apply inline-flex items-center justify-center rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-800 shadow-sm transition hover:border-red-400 hover:bg-red-50;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold text-stone-600 transition hover:bg-stone-100 hover:text-stone-900;
+  }
 }

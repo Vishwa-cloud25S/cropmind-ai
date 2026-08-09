@@ -66,8 +66,10 @@ the stray normalized copy is deleted, and the dedupe is audited (`IMAGE_UPLOAD_D
 | Method | Path | Description |
 |---|---|---|
 | POST | `/analyses` | **202 Accepted** — enqueue. Body `{"image_id": "…", "field_id": "…"?, "demo": bool}`. Returns `{"analysis_id", "job_id", "status": "QUEUED", "poll": "/analyses/{id}", "note"}` (`404` unknown image). The analysis row and its queue job are written in **one transaction** (FK safety, ADR-004) |
+| GET | `/analyses?limit=20&offset=0&status=` | Newest-first page (history UI). `{"count", "analyses": [status payloads]}`. `status` is whitelisted {QUEUED, PROCESSING, COMPLETED, FAILED} → `400 {"detail": {"detail": "unknown status filter", "allowed": […]}}` on anything else |
 | GET | `/analyses/{id}` | Status payload: `status` (QUEUED → PROCESSING → COMPLETED \| FAILED), timestamps, `error` (on FAILED), embedded `job` (`status`, `attempts`, `max_attempts`) |
 | GET | `/analyses/{id}/prediction` | **409** `{"detail": {"detail": "prediction not ready", "analysis_status", "poll"}}` until COMPLETED — never a partial prediction. Then the full prediction payload (§3.5 shape) |
+| GET | `/analyses/{id}/gradcam` | The stored Grad-CAM overlay as `image/png` (filename `cropmind-gradcam-<id8>.png`). **409** `{"detail": {"detail": "Grad-CAM overlay not available", "analysis_status"}}` until ready; `404` unknown analysis / stored file missing |
 
 The worker (`app.workers.analysis_worker`, separate process/container) claims jobs with
 heartbeat + attempts-aware backoff (`run_after = now + attempts² × JOB_RETRY_BACKOFF_S`),
@@ -107,6 +109,24 @@ Prediction payload (every field sourced from the stored contract):
 }
 ```
 
+### 3.6 Farms & fields
+
+Farm/field structure analyses attach to (Phase 6). `owner_id` stays NULL pre-auth — Alembic
+migration `0002` made `farms.owner_id` nullable; Phase 10 assigns real owners and tightens
+scoping. Every write is audited (`FARM_CREATED` / `FARM_UPDATED` / `FARM_DELETED`, `FIELD_*`).
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/farms` | **201** `{"farm": {id, name, location, field_count, created_at}}` |
+| GET | `/farms?limit=50&offset=0` | Newest-first `{"count", "farms": […]}` |
+| GET | `/farms/{id}` | `{"farm": {…}, "fields": [{id, farm_id, name, crop_id, area_ha, created_at}]}` (`404`) |
+| PATCH | `/farms/{id}` | Rename / move (`404`) |
+| DELETE | `/farms/{id}` | **204** — **409** `{"detail": {"detail": "farm still has fields — delete them first", "field_count"}}` while fields exist (never silently destructive) |
+| POST | `/farms/{farm_id}/fields` | **201** `{"field": {…}}`. `crop_id` is validated against the taxonomy's crop ids → **400** `{"detail": {"detail": "unsupported crop_id", "allowed": […]}}` (closed vocabulary — e.g. wheat is honestly rejected until licensed data + honest evaluation add it) |
+| GET | `/fields/{id}` | Single field (`404`) |
+| PATCH | `/fields/{id}` | name / crop_id (re-validated) / area_ha (`404`) |
+| DELETE | `/fields/{id}` | **204** — **409** `{"detail": {"detail": "field is still referenced", "image_count", "zone_count"}}` while images or intervention zones reference it |
+
 ## 4. Lifecycle states
 
 | Row | States |
@@ -119,9 +139,9 @@ Prediction payload (every field sourced from the stored contract):
 
 | Code | Meaning here |
 |---|---|
-| 400 | Upload validation (empty, corrupt, declared/magic mismatch); invalid relation ids |
-| 404 | Unknown image / analysis / prediction |
-| 409 | Prediction requested before its analysis COMPLETED (includes current status + poll path) |
+| 400 | Upload validation (empty, corrupt, declared/magic mismatch); invalid relation ids; unsupported `crop_id` (taxonomy whitelist, `allowed` listed); unknown analysis-status filter |
+| 404 | Unknown image / analysis / prediction / farm / field; stored Grad-CAM file missing |
+| 409 | Prediction or Grad-CAM requested before its analysis COMPLETED (includes current status + poll path); delete of a farm/field that still has dependents (carries the honest blocking counts) |
 | 413 | Upload exceeds `MAX_UPLOAD_SIZE_MB` (enforced while streaming) |
 | 415 | Unrecognized image bytes (magic-byte sniff failed) |
 | 503 | `/health/ready` with database unreachable |

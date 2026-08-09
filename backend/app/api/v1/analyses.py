@@ -7,8 +7,12 @@ raw_json). Demo predictions (sample model) are flagged, never silent.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from pathlib import Path
+
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.db import models
@@ -75,6 +79,28 @@ def _status_payload(analysis: models.Analysis) -> dict:
     return payload
 
 
+@router.get("/analyses")
+def list_analyses(
+    db: DbSession,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = 0,
+    status: str | None = Query(default=None),
+) -> dict:
+    """History surface (Phase 6 UI): newest-first; optional status filter."""
+    stmt = select(models.Analysis)
+    if status is not None:
+        allowed = {"QUEUED", "PROCESSING", "COMPLETED", "FAILED"}
+        if status not in allowed:
+            raise HTTPException(400, {"detail": "unknown status filter", "allowed": sorted(allowed)})
+        stmt = stmt.where(models.Analysis.status == status)
+    rows = (
+        db.execute(stmt.order_by(models.Analysis.created_at.desc(), models.Analysis.id.desc()).limit(limit).offset(offset))
+        .scalars()
+        .all()
+    )
+    return {"count": len(rows), "analyses": [_status_payload(a) for a in rows]}
+
+
 @router.get("/analyses/{analysis_id}")
 def get_analysis(analysis_id: str, db: DbSession) -> dict:
     analysis = db.get(models.Analysis, analysis_id)
@@ -100,3 +126,20 @@ def get_analysis_prediction(analysis_id: str, db: DbSession) -> dict:
             },
         )
     return prediction_payload(analysis.prediction, analysis=analysis)
+
+
+@router.get("/analyses/{analysis_id}/gradcam")
+def get_analysis_gradcam(analysis_id: str, db: DbSession) -> FileResponse:
+    """Serves the stored Grad-CAM overlay for the analysis view (Phase 6 UI)."""
+    analysis = db.get(models.Analysis, analysis_id)
+    if analysis is None:
+        raise HTTPException(404, "analysis not found")
+    if analysis.status != "COMPLETED" or analysis.prediction is None or not analysis.prediction.gradcam_path:
+        raise HTTPException(
+            409,
+            {"detail": "Grad-CAM overlay not available", "analysis_status": analysis.status},
+        )
+    target = Path(get_settings().upload_dir) / analysis.prediction.gradcam_path
+    if not target.is_file():
+        raise HTTPException(404, "stored overlay missing")
+    return FileResponse(target, media_type="image/png", filename=f"cropmind-gradcam-{analysis_id[:8]}.png")
