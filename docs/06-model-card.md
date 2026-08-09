@@ -1,4 +1,4 @@
-# 06 — Model Card (v1, 2026-08-08)
+# 06 — Model Card (v1.1, 2026-08-09)
 
 **Model:** `cropmind-classifier` · **model_version `0.1.0`** (baseline) · Architecture: **MobileNetV3-Small**
 (torchvision, ImageNet init) with replaced head → **21-class softmax** over the canonical sorted
@@ -76,29 +76,50 @@ the evaluation pipeline (`ml/evaluation/`) reproduces them independently per ima
 
 ### 4.2 Formal M1 gates (docs/01 §6) — measured by the evaluation report
 
-Run status: **MEASURED 2026-08-09** — operator Windows workstation, CPU, evaluator
+Run status: **MEASURED AND VERIFIED 2026-08-09** — operator Windows workstation, CPU, evaluator
 `ml/evaluation/` at `main`; preconditions validator PASS with audit record
 `reports/gate_c_precheck.json` (run ↔ dataset ↔ split manifest ↔ archive hash all bound).
 Artifacts: `reports/model_evaluation/{REPORT.md, summary.json, confusion_*.png, exemplars/}`.
-The values below are transcribed from the operator console output; the machine cross-check
-against `summary.json` is queued with the artifact attachment — anything that disagrees will
-be corrected to the file values (files win, always).
+**The console-transcribed values were cross-checked against the generated `summary.json` and
+`REPORT.md`: all gates matched; the file values are the ones recorded below (files win, always).**
 
 | Gate | Requirement | Status | Measured |
 |---|---|---|---|
 | M1-in-domain-top1 | ≥ 0.80 held-out | ✅ **PASS** | **0.9959** (4,119 images; matches training-reported 0.99587, consistency drift ≈ 0.0000 ≤ 0.02) |
 | M1-ood-top1 (PlantDoc) | published as-is, target ≥ 0.50 | 🔶 **SHORTFALL** | **0.2349** (real field imagery) |
-| M1-latency-cpu | p95 ≤ 2,500 ms/image | ✅ **PASS** | **110.4 ms p95** (full production path incl. Grad-CAM per image) |
+| M1-latency-cpu | p95 ≤ 2,500 ms/image | ✅ **PASS** | **110.4 ms p95** (classification path: preprocess + forward + bands; Grad-CAM runs only for exemplars and is excluded from the gate per the report's definition) |
 
 Notes: the OOD pass iterated the raw extracted PlantDoc **train/** tree (the images-root the
-pipeline selected — the tree with the 28 class folders; 17 map to V1 classes, the rest are
-recorded out-of-scope and never claimed): 1,477 files, of which 93 had been renamed at
-extraction for filesystem safety/clash (all recorded verbatim in the plantdoc
-`PROVENANCE.json` under `extraction`). The operator split/stats report counts 1,474 across
-the 17 mapped classes — the 3-file delta is reconciled against `summary.json` (pending; the
-file value wins). The SHORTFALL status is the designed honesty checkpoint for the domain
-gap (see §6 limitations): a published fact, not a failed certification — and it motivates
-the roadmap's field-data work.
+pipeline selected — the tree with the 28 class folders): 17 folders map to V1 classes and the
+11 unmapped folders (865 images across other crops/conditions) are recorded as skipped —
+counted, never claimed as supported. **The eval count 1,477 is verified: it equals the exact
+sum of the 17 per-class OOD supports in `summary.json`.** The operator splits/stats report
+over the same 17 classes totals 1,474; that residual 3-image delta is an open reconciliation
+item (candidates: split tiny-class policy / an excluded-or-unreadable file; the plantdoc
+`split_manifest.json` closes it line-for-line — file values win either way). 93 archive
+members were renamed at extraction for filesystem safety/clash, recorded verbatim in the
+plantdoc `PROVENANCE.json` under `extraction`. The SHORTFALL status is the designed honesty
+checkpoint for the domain gap (see §6 limitations): a published fact, not a failed
+certification — and it motivates the roadmap's field-data work.
+
+### 4.3 Measured detail (verified from `summary.json` / `REPORT.md`, 2026-08-09)
+
+**In-domain (4,119 images).** Mean normalized-entropy uncertainty **0.2099**. Confidence-band
+distribution under the current thresholds: HIGH 4,064 (**98.7%**) · MEDIUM 43 (1.0%) · LOW 12
+(0.3%) · INCONCLUSIVE 0. Top confusions: corn Cercospora/gray leaf spot → corn northern leaf
+blight (×3) and tomato spider mites → tomato target spot (×3). 12 worst-error exemplars with
+Grad-CAM overlays preserved in `reports/model_evaluation/exemplars/` (heatmaps are
+correlation, not lesion-location proof).
+
+**Out-of-domain (PlantDoc field imagery, 1,477 images, coverage 17/21 classes).** Top-1 0.2349.
+Band distribution: HIGH 214 (**14.5%**) · MEDIUM 198 (13.4%) · LOW 495 (33.5%) · INCONCLUSIVE
+570 (**38.6%**). The abstention machinery fires exactly where accuracy collapses: on field
+imagery the product predominantly refuses confident answers instead of hallucinating them.
+Per-class OOD extremes: best corn northern leaf blight F1 0.498 (n=180); tomato mosaic virus
+F1 0.000 (n=44 — predictions absorbed by other classes); tomato spider mites n=2 (thin
+coverage). Latency reference: OOD p95 216.5 ms/image (max 622.4) — also far under the gate.
+No PlantDoc folder exists for apple_black_rot, corn_healthy, potato_healthy (a recorded
+dataset limitation) or tomato_target_spot — hence coverage 17/21, never rounded up.
 
 ## 5. Support rule for classes
 
@@ -106,6 +127,11 @@ A class becomes *eligible* for `supported_by_model: true` only when the **evalua
 shows F1 ≥ 0.90 with support ≥ 20 on the held-out split (rule enforced in
 `ml/evaluation/core.py`). Eligibility is computed by the report; the actual taxonomy/model-config
 flip is a **separate reviewed commit** with the report on record — nothing self-certifies.
+
+**Outcome (2026-08-09, report on record):** all **21 classes are eligible** — weakest
+in-domain F1 0.974 ≥ 0.90 (corn Cercospora/gray leaf spot, n=78); smallest support 24 ≥ 20
+(potato healthy); watchlist empty. The `supported_by_model` flip proceeds only as a separate
+reviewed commit referencing `reports/model_evaluation/summary.json`.
 
 ## 6. Limitations (travel with the model, wherever it is cited)
 
