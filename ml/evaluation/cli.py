@@ -185,7 +185,9 @@ def cmd_report(args) -> int:
     picked = runner.select_exemplars(records_id, args.num_exemplars)
     captions = report.materialize_exemplars(predictor, picked, out_dir / "exemplars")
 
-    reproduce = f"python -m ml.evaluation.cli report --run-dir {run_dir.name} --device {device}" + (" --no-ood" if args.no_ood else "")
+    # Faithful reproduction: print the --run-dir value exactly as invoked (a collapsed
+    # run-dir .name would print "--run-dir <id>" without runs/, which does not resolve).
+    reproduce = f"python -m ml.evaluation.cli report --run-dir {args.run_dir} --device {device}" + (" --no-ood" if args.no_ood else "")
     ctx = _build_ctx(
         run_dir=run_dir,
         predictor=predictor,
