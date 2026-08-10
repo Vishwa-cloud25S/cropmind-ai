@@ -32,6 +32,15 @@ class Settings(BaseSettings):
     # Phase 7 — intervention zones (rules documented in app/services/mapping.py)
     zone_severity_critical: float = 0.5  # visual-severity proxy >= this escalates risk one level
 
+    # Phase 10 — auth, sessions, rate limiting (docs/04 §3.10, §3.11)
+    auth_required: bool = True  # AUTH_REQUIRED=false exists only for fully-local trusted dev rigs
+    jwt_secret_key: str | None = None  # placeholder/None => ephemeral per-boot secret (loud warning, tokens die on restart)
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 720  # 12 h access tokens; refresh tokens are a documented post-MVP item
+    rate_limit_enabled: bool = True  # in-memory per-process buckets (single instance; Redis-class store post-MVP)
+    rate_limit_auth_per_minute: int = 10  # /auth/register + /auth/login per IP — brute-force brake
+    rate_limit_write_per_minute: int = 120  # all other mutating calls per IP
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

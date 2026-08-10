@@ -3,19 +3,30 @@
  * against NEXT_PUBLIC_API_URL, never at SSR/build time inside a container).
  */
 
+import { getToken, handleUnauthorized, isSessionAlive } from "@/lib/auth";
 import type {
+  AdminUserList,
   AnalysisCreateResponse,
   AnalysisList,
   AnalysisReportView,
   AnalysisStatus,
+  AuditLogList,
+  AuthUser,
+  AuthResponse,
   Farm,
   FarmDetail,
   FarmList,
+  FeedbackCreate,
+  FeedbackAdminList,
+  FeedbackItem,
+  FeedbackList,
   FieldMapData,
   FieldRecord,
   ImageUploadResponse,
   InterventionZone,
+  MeResponse,
   ModelInfo,
+  OverviewStats,
   Prediction,
   PredictionList,
   ReportList,
@@ -44,11 +55,19 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // Session token rides on every call when present (Phase 10); the API is the
+  // real enforcement boundary — this header only saves a round-trip.
+  const token = getToken();
+  const headers: Record<string, string> = {
+    ...(init?.headers as Record<string, string> | undefined),
+    ...(token && isSessionAlive() ? { Authorization: `Bearer ${token}` } : {}),
+  };
   let response: Response;
   try {
     response = await fetch(`${API_BASE}${path}`, {
       cache: "no-store",
       ...init,
+      headers,
     });
   } catch (cause) {
     // Network-level failure (API down / unreachable): never invent a status.
@@ -65,6 +84,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       detail = body?.detail ?? body;
     } catch {
       /* non-JSON error body — keep statusText */
+    }
+    // A dead session anywhere ⇒ clear + route to /login with a return path.
+    // /auth/* 401s (wrong password etc.) are form errors, not session death.
+    if (response.status === 401 && !path.startsWith("/auth/")) {
+      handleUnauthorized();
     }
     throw new ApiError(response.status, detail);
   }
@@ -260,6 +284,69 @@ export function getSupportedCrops(): Promise<SupportedCrops> {
 
 export function getReadiness(): Promise<{ status: string; database: string }> {
   return request<{ status: string; database: string }>("/health/ready");
+}
+
+// ── Phase 10: auth, feedback, admin ───────────────────────────────────────────
+
+export function registerAccount(email: string, password: string): Promise<AuthResponse> {
+  return request<AuthResponse>("/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function loginAccount(email: string, password: string): Promise<AuthResponse> {
+  return request<AuthResponse>("/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+/** Best-effort server-side revocation; the caller clears local state regardless. */
+export function logoutAccount(): Promise<{ detail: string }> {
+  return request<{ detail: string }>("/auth/logout", { method: "POST" });
+}
+
+export function getMe(): Promise<MeResponse> {
+  return request<MeResponse>("/auth/me");
+}
+
+export function submitFeedback(analysisId: string, body: FeedbackCreate): Promise<{ feedback: FeedbackItem; note: string }> {
+  return request<{ feedback: FeedbackItem; note: string }>(`/analyses/${analysisId}/feedback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export function listFeedback(analysisId: string): Promise<FeedbackList> {
+  return request<FeedbackList>(`/analyses/${analysisId}/feedback`);
+}
+
+export function adminListUsers(): Promise<AdminUserList> {
+  return request<AdminUserList>("/admin/users");
+}
+
+export function adminChangeRole(userId: string, role: "FARMER" | "AGRONOMIST" | "ADMIN"): Promise<{ user: AuthUser; role_transition: string }> {
+  return request<{ user: AuthUser; role_transition: string }>(`/admin/users/${userId}/role`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ role }),
+  });
+}
+
+export function adminListFeedback(limit = 50): Promise<FeedbackAdminList> {
+  return request<FeedbackAdminList>(`/admin/feedback${qs({ limit })}`);
+}
+
+export function adminListAuditLogs(limit = 100): Promise<AuditLogList> {
+  return request<AuditLogList>(`/admin/audit-logs${qs({ limit })}`);
+}
+
+export function adminOverview(): Promise<{ overview: OverviewStats; note: string }> {
+  return request<{ overview: OverviewStats; note: string }>("/admin/overview");
 }
 
 // ── Phase 9: PDF field reports ────────────────────────────────────────────────

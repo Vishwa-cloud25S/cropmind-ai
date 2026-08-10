@@ -21,8 +21,18 @@ from sqlalchemy import select
 from app.core.logging import request_id_ctx
 from app.db import models
 from app.db.session import DbSession
-from app.services import simbridge
+from app.services import security, simbridge
 from app.services.mapping import validate_wgs84_polygon
+from app.services.ratelimit import enforce_write
+
+
+def _visible_field(db, field_id: str, user) -> models.Field:
+    field = db.get(models.Field, field_id)
+    if field is None:
+        raise HTTPException(404, "field not found")
+    farm = db.get(models.Farm, field.farm_id)
+    security.visible_or_404(farm.owner_id if farm else None, user, "field")
+    return field
 
 router = APIRouter(tags=["simulations"])
 
@@ -37,10 +47,10 @@ class SprayPlanRequest(BaseModel):
 
 
 @router.post("/simulations/spray-plan", status_code=201)
-def create_spray_plan(body: SprayPlanRequest, db: DbSession, request: Request) -> dict:
-    field = db.get(models.Field, body.field_id)
-    if field is None:
-        raise HTTPException(404, "field not found")
+def create_spray_plan(body: SprayPlanRequest, db: DbSession, request: Request, user: security.CurrentUser) -> dict:
+    enforce_write(request)
+    actor = security.require_role(user, "FARMER", "ADMIN")  # planning action; AGRONOMIST reviews
+    field = _visible_field(db, body.field_id, actor)
     if not field.boundary_geojson:
         raise HTTPException(
             409,
@@ -73,7 +83,7 @@ def create_spray_plan(body: SprayPlanRequest, db: DbSession, request: Request) -
 
     db.add(
         models.AuditLog(
-            user_id=None,
+            user_id=actor.id,
             action="SIMULATION_RUN_CREATED",
             entity="simulation_run",
             entity_id=run_row.id,
@@ -88,11 +98,18 @@ def create_spray_plan(body: SprayPlanRequest, db: DbSession, request: Request) -
 @router.get("/simulations")
 def list_simulations(
     db: DbSession,
+    user: security.CurrentUser,
     field_id: str | None = Query(default=None),
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: int = 0,
 ) -> dict:
-    stmt = select(models.SimulationRun)
+    security.read_gate(user)
+    stmt = (
+        select(models.SimulationRun)
+        .join(models.Field, models.SimulationRun.field_id == models.Field.id)
+        .join(models.Farm, models.Field.farm_id == models.Farm.id)
+        .where(security.ownership_filter(models.Farm.owner_id, user))
+    )
     if field_id is not None:
         stmt = stmt.where(models.SimulationRun.field_id == field_id)
     rows = (
@@ -108,18 +125,22 @@ def list_simulations(
 
 
 @router.get("/simulations/{simulation_id}")
-def get_simulation(simulation_id: str, db: DbSession) -> dict:
+def get_simulation(simulation_id: str, db: DbSession, user: security.CurrentUser) -> dict:
+    security.read_gate(user)
     run_row = db.get(models.SimulationRun, simulation_id)
     if run_row is None:
         raise HTTPException(404, "simulation not found")
+    _visible_field(db, run_row.field_id, user)
     return {"simulation": simbridge.simulation_payload(run_row)}
 
 
 @router.get("/simulations/{simulation_id}/route.geojson")
-def get_simulation_route(simulation_id: str, db: DbSession) -> Response:
+def get_simulation_route(simulation_id: str, db: DbSession, user: security.CurrentUser) -> Response:
+    security.read_gate(user)
     run_row = db.get(models.SimulationRun, simulation_id)
     if run_row is None:
         raise HTTPException(404, "simulation not found")
+    _visible_field(db, run_row.field_id, user)
     route = run_row.result_json["route_geojson"]
     return Response(
         json.dumps(route, indent=2),

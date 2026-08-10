@@ -21,29 +21,11 @@ type InfoPage = {
 };
 
 const STUBS: Record<string, Stub> = {
-  login: {
-    title: "Sign in",
-    phase: "Phase 10 · Authentication",
-    lede: "JWT sign-in with hashed passwords and protected routes.",
-    bullets: ["Email + password authentication", "Session management with short-lived tokens", "Role-aware routing (Farmer / Agronomist / Admin)"],
-  },
-  register: {
-    title: "Create account",
-    phase: "Phase 10 · Authentication",
-    lede: "Account creation for farmers, agronomists and admins.",
-    bullets: ["Self-serve signup", "bcrypt password hashing", "Terms acceptance recorded in audit log"],
-  },
   fields: {
     title: "Field",
     phase: "Phase 7",
     lede: "Single-field view with boundary and analysis history.",
     bullets: ["Draw/edit boundary on OpenStreetMap", "Upload imagery, run analysis", "Historical observations timeline"],
-  },
-  settings: {
-    title: "Settings",
-    phase: "Phase 10",
-    lede: "Account, farm defaults and transparency knobs.",
-    bullets: ["Profile + role", "Farm defaults (units, area)", "View active confidence thresholds (from model.yaml)"],
   },
 };
 

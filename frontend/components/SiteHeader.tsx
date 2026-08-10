@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import AuthSlot from "@/components/AuthSlot";
+
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/analyze", label: "Analyze" },
@@ -48,12 +50,7 @@ export default function SiteHeader() {
         </nav>
 
         <div className="hidden items-center gap-3 md:flex">
-          <Link href="/login" className="text-sm font-semibold text-stone-700 hover:text-emerald-900">
-            Sign in
-          </Link>
-          <Link href="/dashboard" className="btn-primary">
-            Try the Demo
-          </Link>
+          <AuthSlot />
         </div>
 
         <details className="group relative md:hidden">
@@ -77,9 +74,7 @@ export default function SiteHeader() {
                 {item.label}
               </Link>
             ))}
-            <Link href="/dashboard" className="btn-primary mt-2 w-full">
-              Try the Demo
-            </Link>
+            <AuthSlot mobile />
           </div>
         </details>
       </div>

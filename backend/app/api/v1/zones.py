@@ -20,17 +20,18 @@ from sqlalchemy import select
 from app.core.logging import request_id_ctx
 from app.db import models
 from app.db.session import DbSession
-from app.services import mapping
+from app.services import mapping, security
+from app.services.ratelimit import enforce_write
 
 router = APIRouter(tags=["intervention-zones"])
 
 _REVIEW_STATUSES = {"PENDING", "APPROVED", "REJECTED"}
 
 
-def _audit(db, action: str, zone_id: str, request: Request, details_status: str | None = None) -> None:
+def _audit(db, action: str, zone_id: str, request: Request, user: models.User | None = None) -> None:
     db.add(
         models.AuditLog(
-            user_id=None,
+            user_id=user.id if user else None,
             action=action,
             entity="intervention_zone",
             entity_id=zone_id,
@@ -40,14 +41,26 @@ def _audit(db, action: str, zone_id: str, request: Request, details_status: str 
     )
 
 
+def _visible_zone(db: DbSession, zone_id: str, user: models.User | None) -> models.InterventionZone:
+    security.read_gate(user)
+    zone = db.get(models.InterventionZone, zone_id)
+    if zone is None:
+        raise HTTPException(404, "intervention zone not found")
+    security.visible_or_404(zone.analysis.requested_by, user, "intervention zone")
+    return zone
+
+
 # ── generation ─────────────────────────────────────────────────────────────────
 
 
 @router.post("/analyses/{analysis_id}/intervention-zones", status_code=201)
-def generate_analysis_zones(analysis_id: str, db: DbSession, request: Request) -> dict:
+def generate_analysis_zones(analysis_id: str, db: DbSession, request: Request, user: security.CurrentUser) -> dict:
+    enforce_write(request)
+    security.read_gate(user)
     analysis = db.get(models.Analysis, analysis_id)
     if analysis is None:
         raise HTTPException(404, "analysis not found")
+    security.visible_or_404(analysis.requested_by, user, "analysis")
     if analysis.status != "COMPLETED" or analysis.prediction is None:
         raise HTTPException(
             409,
@@ -59,7 +72,7 @@ def generate_analysis_zones(analysis_id: str, db: DbSession, request: Request) -
         )
     created, note = mapping.generate_zones(db, analysis)
     if created:
-        _audit(db, "ZONES_GENERATED", created[0].id, request)
+        _audit(db, "ZONES_GENERATED", created[0].id, request, user)
     db.flush()
     return {
         "count": len(created),
@@ -75,12 +88,18 @@ def generate_analysis_zones(analysis_id: str, db: DbSession, request: Request) -
 @router.get("/intervention-zones")
 def list_zones(
     db: DbSession,
+    user: security.CurrentUser,
     field_id: str | None = Query(default=None),
     review_status: str | None = Query(default=None),
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: int = 0,
 ) -> dict:
-    stmt = select(models.InterventionZone).join(models.Analysis, models.InterventionZone.analysis_id == models.Analysis.id)
+    security.read_gate(user)
+    stmt = (
+        select(models.InterventionZone)
+        .join(models.Analysis, models.InterventionZone.analysis_id == models.Analysis.id)
+        .where(security.ownership_filter(models.Analysis.requested_by, user))
+    )
     if field_id is not None:
         stmt = stmt.where(models.Analysis.field_id == field_id)
     if review_status is not None:
@@ -106,11 +125,17 @@ def list_zones(
 @router.get("/intervention-zones/export")
 def export_zones(
     db: DbSession,
+    user: security.CurrentUser,
     field_id: str | None = Query(default=None),
     review_status: str | None = Query(default=None),
     format: str = Query(default="geojson"),
 ) -> Response:
-    stmt = select(models.InterventionZone).join(models.Analysis, models.InterventionZone.analysis_id == models.Analysis.id)
+    security.read_gate(user)
+    stmt = (
+        select(models.InterventionZone)
+        .join(models.Analysis, models.InterventionZone.analysis_id == models.Analysis.id)
+        .where(security.ownership_filter(models.Analysis.requested_by, user))
+    )
     if field_id is not None:
         stmt = stmt.where(models.Analysis.field_id == field_id)
     if review_status is not None:
@@ -137,11 +162,8 @@ def export_zones(
 
 
 @router.get("/intervention-zones/{zone_id}")
-def get_zone(zone_id: str, db: DbSession) -> dict:
-    zone = db.get(models.InterventionZone, zone_id)
-    if zone is None:
-        raise HTTPException(404, "intervention zone not found")
-    return {"zone": mapping.zone_payload(zone)}
+def get_zone(zone_id: str, db: DbSession, user: security.CurrentUser) -> dict:
+    return {"zone": mapping.zone_payload(_visible_zone(db, zone_id, user))}
 
 
 # ── review ─────────────────────────────────────────────────────────────────────
@@ -153,15 +175,15 @@ class ZoneReview(BaseModel):
 
 
 @router.patch("/intervention-zones/{zone_id}")
-def review_zone(zone_id: str, body: ZoneReview, db: DbSession, request: Request) -> dict:
-    zone = db.get(models.InterventionZone, zone_id)
-    if zone is None:
-        raise HTTPException(404, "intervention zone not found")
+def review_zone(zone_id: str, body: ZoneReview, db: DbSession, request: Request, user: security.CurrentUser) -> dict:
+    enforce_write(request)
+    zone = _visible_zone(db, zone_id, user)
     previous = zone.review_status
     zone.review_status = body.review_status
     zone.review_note = body.review_note
+    zone.reviewer_id = user.id if user else None
     zone.reviewed_at = datetime.now(UTC)
-    _audit(db, "ZONE_REVIEWED", zone.id, request)
+    _audit(db, "ZONE_REVIEWED", zone.id, request, user)
     db.flush()
     payload = mapping.zone_payload(zone)
     payload["review_transition"] = f"{previous} → {zone.review_status}"
@@ -172,12 +194,15 @@ def review_zone(zone_id: str, body: ZoneReview, db: DbSession, request: Request)
 
 
 @router.get("/fields/{field_id}/map-data")
-def field_map_data(field_id: str, db: DbSession) -> dict:
+def field_map_data(field_id: str, db: DbSession, user: security.CurrentUser) -> dict:
     """Everything the map page needs in one honest read — no derived data invented
     client-side; the decision-support strip is computed from stored rows only."""
+    security.read_gate(user)
     field = db.get(models.Field, field_id)
     if field is None:
         raise HTTPException(404, "field not found")
+    farm = db.get(models.Farm, field.farm_id)
+    security.visible_or_404(farm.owner_id if farm else None, user, "field")
 
     analyses = (
         db.execute(

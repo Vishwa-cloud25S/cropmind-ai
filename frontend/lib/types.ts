@@ -403,3 +403,99 @@ export interface ReportList {
   reports: ReportPayload[];
   note: string;
 }
+
+// ── Phase 10: auth, feedback, admin ───────────────────────────────────────────
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  role: "FARMER" | "AGRONOMIST" | "ADMIN";
+  created_at: string | null;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  token_type: "bearer";
+  expires_at: string;
+  expires_in_s: number;
+  user: AuthUser;
+  role_note?: string;
+}
+
+export interface MeResponse {
+  user: AuthUser;
+  session: { expires_at: string; issuer: string; revocation: string };
+}
+
+export interface FeedbackCreate {
+  correctness: "YES" | "NO" | "NOT_SURE";
+  actual_condition?: string | null;
+  notes?: string | null;
+  image_quality?: "GOOD" | "BLURRY" | "BAD_LIGHTING" | "NOT_A_LEAF" | null;
+}
+
+export interface FeedbackItem {
+  id: string;
+  analysis_id: string;
+  user_id: string | null;
+  correctness: "YES" | "NO" | "NOT_SURE";
+  actual_condition: string | null;
+  notes: string | null;
+  image_quality: string | null;
+  created_at: string | null;
+  user_email?: string | null; // reviewer surface only (admin/agronomist)
+}
+
+export interface FeedbackList {
+  count: number;
+  feedback: FeedbackItem[];
+}
+
+export interface FeedbackAdminList extends FeedbackList {
+  total: number;
+  by_correctness: Record<string, number>;
+  note: string;
+}
+
+export interface AdminUserRow extends AuthUser {
+  farm_count: number;
+  bootstrap_note: string | null;
+}
+
+export interface AdminUserList {
+  count: number;
+  users: AdminUserRow[];
+}
+
+export interface AuditLogRow {
+  id: string;
+  action: string;
+  entity: string;
+  entity_id: string | null;
+  user_id: string | null;
+  ip: string | null;
+  request_id: string | null;
+  created_at: string | null;
+}
+
+export interface AuditLogList {
+  count: number;
+  audit_logs: AuditLogRow[];
+}
+
+export interface OverviewStats {
+  users: number;
+  farms: number;
+  fields: number;
+  images: number;
+  analyses: number;
+  analyses_by_status: Record<string, number>;
+  predictions_by_status: Record<string, number>;
+  zones_by_review_status: Record<string, number>;
+  reports: number;
+  feedback: number;
+  simulation_runs: number;
+  model_versions: number;
+  dataset_sources: number;
+  revoked_tokens: number;
+}

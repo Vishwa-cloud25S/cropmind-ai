@@ -31,7 +31,7 @@ def _table_names(url: str) -> set[str]:
 
 def test_all_fourteen_tables_created(db_session_factory) -> None:
     assert set(sa.inspect(get_engine()).get_table_names()) == set(models.ALL_TABLES)
-    assert len(models.ALL_TABLES) == 15  # +simulation_runs (Phase 8, migration 0004)
+    assert len(models.ALL_TABLES) == 16  # +revoked_tokens (Phase 10, migration 0005)
 
 
 def test_basic_insert_roundtrip(db_session_factory) -> None:

@@ -12,6 +12,7 @@ from sqlalchemy import select
 
 from app.db import models
 from app.db.session import DbSession
+from app.services import security
 
 router = APIRouter(tags=["predictions"])
 
@@ -60,10 +61,15 @@ def prediction_payload(prediction: models.Prediction, *, analysis: models.Analys
 
 
 @router.get("/predictions")
-def list_predictions(db: DbSession, limit: int = Query(default=20, ge=1, le=100), offset: int = 0) -> dict:
+def list_predictions(
+    db: DbSession, user: security.CurrentUser, limit: int = Query(default=20, ge=1, le=100), offset: int = 0
+) -> dict:
+    security.read_gate(user)
     rows = (
         db.execute(
             select(models.Prediction)
+            .join(models.Analysis, models.Prediction.analysis_id == models.Analysis.id)
+            .where(security.ownership_filter(models.Analysis.requested_by, user))
             .order_by(models.Prediction.created_at.desc(), models.Prediction.id.desc())
             .limit(limit)
             .offset(offset)
@@ -79,8 +85,10 @@ def list_predictions(db: DbSession, limit: int = Query(default=20, ge=1, le=100)
 
 
 @router.get("/predictions/{prediction_id}")
-def get_prediction(prediction_id: str, db: DbSession) -> dict:
+def get_prediction(prediction_id: str, db: DbSession, user: security.CurrentUser) -> dict:
+    security.read_gate(user)
     prediction = db.get(models.Prediction, prediction_id)
     if prediction is None:
         raise HTTPException(404, "prediction not found")
+    security.visible_or_404(prediction.analysis.requested_by, user, "prediction")
     return prediction_payload(prediction, analysis=prediction.analysis)

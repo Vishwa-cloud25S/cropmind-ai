@@ -104,10 +104,10 @@ describe("AnalyzeWizard", () => {
 
     expect(screen.getByText("Stored copy")).toBeInTheDocument();
     expect(screen.getByText(/Identical content was already uploaded/)).toBeInTheDocument(); // dedup note
-    expect(deps.uploadImageFn).toHaveBeenCalledWith(expect.anything(), { fieldId: undefined });
+    expect(deps.uploadImageFn).toHaveBeenCalledWith(expect.anything(), { fieldId: undefined, demo: true });
 
     await user.click(screen.getByRole("button", { name: "Run analysis" }));
-    expect(deps.createAnalysisFn).toHaveBeenCalledWith("img-111", { fieldId: undefined });
+    expect(deps.createAnalysisFn).toHaveBeenCalledWith("img-111", { fieldId: undefined, demo: true });
 
     const link = await screen.findByRole("link", { name: /View the full analysis/ });
     expect(link).toHaveAttribute("href", "/analyses/ana-222");
@@ -157,6 +157,6 @@ describe("AnalyzeWizard", () => {
 
     await pickPhoto(user, new File(["jpeg-bytes"], "leaf.jpg", { type: "image/jpeg" }));
     await user.click(screen.getByRole("button", { name: "Upload" }));
-    expect(deps.uploadImageFn).toHaveBeenCalledWith(expect.anything(), { fieldId: "field-9" });
+    expect(deps.uploadImageFn).toHaveBeenCalledWith(expect.anything(), { fieldId: "field-9", demo: true });
   });
 });

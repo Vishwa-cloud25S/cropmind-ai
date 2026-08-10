@@ -139,7 +139,7 @@ while dependents exist), the analyses list + status filter, and the stored-Grad-
 image GPS is stripped at upload, so locations are never invented; §7 of docs/04), human review
 (APPROVED/REJECTED, audited transitions), simulation-labelled GeoJSON/CSV export, `/fields/{id}/map-data`,
 and user-drawn WGS84 field boundaries with strict validation (migration `0003`: zone review bookkeeping).
-Auth, feedback and reports routes land in Phases 9–10 (reports landed in Phase 9 — see docs/04 §3.9; auth + feedback remain Phase 10).
+Auth, feedback and reports routes land in Phases 9–10 (all landed — docs/04 §3.9 reports, §3.10 auth/sessions/scoping, §3.11 feedback/admin/rate limits).
 
 ## 7. Background processing
 

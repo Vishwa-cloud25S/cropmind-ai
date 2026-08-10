@@ -13,6 +13,7 @@ import {
   uploadImage,
 } from "@/lib/api";
 import { getAnalysis } from "@/lib/api";
+import { isSessionAlive } from "@/lib/auth";
 import type { AnalysisState, AnalysisStatus, Farm, FieldRecord, ImageRecord } from "@/lib/types";
 import { AnalysisStatusChip } from "@/components/StatusBadge";
 
@@ -50,6 +51,7 @@ export default function AnalyzeWizard(props: WizardDeps) {
   const [serverError, setServerError] = useState<string | null>(null);
   const [upload, setUpload] = useState<UploadOk | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisStatus | null>(null);
+  const [signedIn, setSignedIn] = useState(true); // assumed true until mount-probed (avoids SSR/CSR mismatch)
   const [busy, setBusy] = useState(false);
 
   const [farms, setFarms] = useState<Farm[] | null>(null);
@@ -66,6 +68,10 @@ export default function AnalyzeWizard(props: WizardDeps) {
   useEffect(() => stopPolling, [stopPolling]);
 
   // Farms for the optional field picker (progressive disclosure, never fabricated).
+  useEffect(() => {
+    setSignedIn(isSessionAlive()); // client-only session probe
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     listFarmsFn()
@@ -121,7 +127,9 @@ export default function AnalyzeWizard(props: WizardDeps) {
     setBusy(true);
     setServerError(null);
     try {
-      const response = await uploadImageFn(file, { fieldId: fieldId || undefined });
+      // Phase 10 honesty: without a session the only path is the flagged demo one.
+      const demo = !isSessionAlive(); // handler-time probe (client-only) — always accurate
+      const response = await uploadImageFn(file, { fieldId: fieldId || undefined, demo });
       setUpload({ image: { ...response.image }, deduplicated: response.image.deduplicated });
       setStep("uploaded");
     } catch (err) {
@@ -159,12 +167,16 @@ export default function AnalyzeWizard(props: WizardDeps) {
     setBusy(true);
     setServerError(null);
     try {
-      const response = await createAnalysisFn(upload.image.id, { fieldId: upload.image.field_id ?? (fieldId || undefined) });
+      const demo = !isSessionAlive(); // handler-time probe (client-only) — always accurate
+      const response = await createAnalysisFn(upload.image.id, {
+        fieldId: upload.image.field_id ?? (fieldId || undefined),
+        demo,
+      });
       setAnalysis({
         analysis_id: response.analysis_id,
         image_id: upload.image.id,
         status: "QUEUED",
-        demo: false,
+        demo,
         created_at: null,
         started_at: null,
         completed_at: null,
@@ -257,6 +269,16 @@ export default function AnalyzeWizard(props: WizardDeps) {
               </select>
             </div>
           </div>
+        ) : null}
+        {!signedIn ? (
+          <p className="alert-info mt-4" role="note">
+            No account signed in — this run uses the <strong>flagged demo path</strong> (demo sample model unless a
+            trained checkpoint is configured, results labelled demo).{" "}
+            <Link href="/login?next=/analyze" className="link-cta">
+              Sign in
+            </Link>{" "}
+            for a private workspace with farm/field linking.
+          </p>
         ) : null}
         <div className="mt-4 flex gap-3">
           <button type="button" className="btn-primary" onClick={doUpload} disabled={!file || busy || running || step !== "choose"}>

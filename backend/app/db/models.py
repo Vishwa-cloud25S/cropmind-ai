@@ -1,4 +1,4 @@
-"""ORM models — 15-table schema per docs/02-system-architecture §5 (Phases 5+8).
+"""ORM models — 16-table schema per docs/02-system-architecture §5 (Phases 5+8+10).
 
 Portability rules (tests run on SQLite, production on PostgreSQL 16): no
 dialect-specific column types — GeoJSON is JSON, enums are portable CHECK-string
@@ -35,7 +35,7 @@ class Base(DeclarativeBase):
 
 
 class User(Base):
-    """Auth-ready (Phase 6 attaches endpooints); role: FARMER|AGRONOMIST|ADMIN."""
+    """Live since Phase 10 (bcrypt + JWT); role: FARMER|AGRONOMIST|ADMIN."""
 
     __tablename__ = "users"
     id: Mapped[str] = mapped_column(_UUID, primary_key=True, default=_new_uuid)
@@ -50,8 +50,8 @@ class User(Base):
 class Farm(Base):
     __tablename__ = "farms"
     id: Mapped[str] = mapped_column(_UUID, primary_key=True, default=_new_uuid)
-    # Nullable until Phase 10 auth assigns real owners (migration 0002 made it nullable;
-    # Phase 10 backfills and tightens again).
+    # NULL = pre-auth/demo legacy row. Phase 10 decision (docs/04 §3.10): new rows get real
+    # owners; NULL stays as the documented shared-workspace marker — never tightened, stated.
     owner_id: Mapped[str | None] = mapped_column(_UUID, sa.ForeignKey("users.id"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(sa.String(200))
     location: Mapped[str | None] = mapped_column(sa.String(300), nullable=True)
@@ -260,6 +260,7 @@ class Feedback(Base):
     created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), server_default=sa.func.now())
 
     analysis: Mapped[Analysis] = relationship(back_populates="feedback_rows")
+    user: Mapped[User | None] = relationship()  # attribution for the admin review surface
 
 
 class DatasetSource(Base):
@@ -296,6 +297,16 @@ class SimulationRun(Base):
     field: Mapped[Field] = relationship()
 
 
+class RevokedToken(Base):
+    """JWT denylist (Phase 10): logout writes the jti here — real server-side revocation."""
+
+    __tablename__ = "revoked_tokens"
+    jti: Mapped[str] = mapped_column(sa.String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(_UUID, sa.ForeignKey("users.id"), index=True)
+    expires_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True))
+    revoked_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), server_default=sa.func.now())
+
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
     id: Mapped[str] = mapped_column(_UUID, primary_key=True, default=_new_uuid)
@@ -311,5 +322,5 @@ class AuditLog(Base):
 ALL_TABLES = [
     "users", "farms", "fields", "images", "analyses", "analysis_jobs", "model_versions",
     "predictions", "detection_regions", "intervention_zones", "reports", "feedback",
-    "dataset_sources", "simulation_runs", "audit_logs",
+    "dataset_sources", "simulation_runs", "revoked_tokens", "audit_logs",
 ]

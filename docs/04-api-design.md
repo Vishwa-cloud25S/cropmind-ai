@@ -205,6 +205,66 @@ the 409 says so and points at zone generation.
 | GET | `/reports/{id}` | Full payload including the build basis (`404`) |
 | GET | `/reports/{id}/download` | The PDF artifact; filename `cropmind-field-report-{report_id}.pdf` (`404` unknown, **409** file missing on disk with regenerate hint) |
 
+### 3.10 Auth, sessions & scoping (Phase 10)
+
+**Security honesty.** Passwords are bcrypt-hashed (`$2b$`, self-describing). Sessions are
+HS256 JWT access tokens, 12 h by default; sign-out writes the token's `jti` to the
+`revoked_tokens` denylist and every authenticated call checks it — **logout really
+revokes** (no client-side theatre). `JWT_SECRET_KEY` unset/placeholder ⇒ an ephemeral
+per-boot secret is used with a loud startup warning (tokens die on restart; that is
+stated, not hidden). Login failures return one generic `401 invalid email or password`
+for unknown email AND wrong password (no account enumeration), with
+`WWW-Authenticate: Bearer`. A failed login is committed to the audit log *before* the
+401 is raised — security events must survive request rollback. A present but
+invalid/expired/revoked token is a hard 401 (never silently downgraded to anonymous);
+an absent header means anonymous, and each endpoint applies its own rule.
+
+**Bootstrap & roles.** The first registered account becomes `ADMIN` (one-time,
+documented, surfaced in the response and the UI); every later account is `FARMER`;
+`AGRONOMIST`/`ADMIN` are assigned by an admin. Role writes answer 403 with
+`your_role` + `requires`; an admin cannot change their own role (409 — the
+no-admins-left footgun is blocked, not warned about).
+
+**Scoping v1 (stated in scoped payloads).** `FARMER` sees rows they own plus legacy
+NULL-owner rows (pre-auth/demo records form a shared workspace); `AGRONOMIST` and
+`ADMIN` see all; out-of-scope rows answer 404 (existence not confirmed). Writes that
+create farms/fields/upload-and-plan require `FARMER` or `ADMIN`; reviewers read. Every
+farm/image/analysis row created under an account records `owner_id`/`uploader_id`/
+`requested_by`. Demo mode keeps a clearly-flagged anonymous path: with `DEMO_MODE`
+on, anonymous callers may upload+analyse with `demo=true` only — stored as `DEMO`,
+always flagged. Content dedupe is global (sha256): identical bytes under another
+account answer an honest 409 instead of a metadata peek.
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/auth/register` | **201** `{access_token, token_type, expires_at, expires_in_s, user, role_note}`. Email sanity + password policy (≥10 chars, letter+digit — unmet rules listed verbatim, 422); 409 existing address (signup enumeration stated, mitigation post-MVP); first account = ADMIN |
+| POST | `/auth/login` | **200** token payload; **401** generic message (+ `WWW-Authenticate`); failed attempts audited `AUTH_LOGIN_FAILED` |
+| POST | `/auth/logout` | Revokes the presented token server-side (denylist), audited `AUTH_LOGOUT`; **200** `{detail}` stating revocation is real |
+| GET | `/auth/me` | `{user, session{expires_at, issuer, revocation}}` — session truth from the server, not from local state (`401`) |
+
+### 3.11 Feedback, admin & rate limiting (Phase 10)
+
+Feedback (FR-18) is per-account by design — a verdict that can't be attributed can't be
+audited; submissions state they inform the data strategy and that **no automatic
+retraining** happens. The admin surface (FR-21 v1) is ADMIN-only. Rate limiting
+(§3.11) is an in-memory per-process sliding window keyed by client IP — honest for the
+single-instance MVP; a shared store slots in behind the same 429 contract for
+multi-replica deployments.
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/analyses/{id}/feedback` | **201**; body `{correctness: YES\|NO\|NOT_SURE, actual_condition?, notes?, image_quality?}`; `401` anonymous · `404` unknown/out-of-scope · `409` prediction not complete · `422` invalid enum. Audited `FEEDBACK_SUBMITTED` |
+| GET | `/analyses/{id}/feedback` | Own verdicts; ADMIN/AGRONOMIST see all rows for the analysis with author attribution |
+| GET | `/admin/users` | ADMIN only: users + farm counts + bootstrap note (`403` otherwise) |
+| PATCH | `/admin/users/{id}/role` | Role change, audited `AUTH_ROLE_CHANGED` OLD → NEW; `409` self-change blocked; `422` invalid role |
+| GET | `/admin/feedback` | All verdicts with authors + `by_correctness` tallies |
+| GET | `/admin/audit-logs?limit=` | Newest-first security trail |
+| GET | `/admin/overview` | Measured-at-request-time counts (incl. per-status breakdowns) — never cached marketing numbers |
+
+**Rate limits** (config: `RATE_LIMIT_AUTH_PER_MINUTE` default 10, `RATE_LIMIT_WRITE_PER_MINUTE`
+default 120, `RATE_LIMIT_ENABLED` default true): `429` with `Retry-After` header and a body
+saying what was limited and when to retry.
+
 ## 4. Lifecycle states
 
 | Row | States |
@@ -213,13 +273,19 @@ the 409 says so and points at zone generation.
 | `analysis_jobs.status` | `PENDING` → `RUNNING` → `COMPLETED` \| `FAILED` (terminal) \| back to `PENDING` (retry, `run_after` backoff) |
 | `intervention_zones.review_status` (Phase 7) | `PENDING` → `APPROVED` \| `REJECTED` |
 | `reports` (Phase 9) | no state machine — one row per analysis; `generated_at` refreshes on every explicit regeneration (human `report_id` stable) |
+| `auth sessions` (Phase 10) | JWT valid → revoked (logout, `revoked_tokens` jti denylist) \| expired (12 h TTL) |
+| `users.role` (Phase 10) | `FARMER` (default) · `AGRONOMIST` · `ADMIN` (first-account bootstrap, then admin-assigned; self-change blocked) |
+| `feedback.correctness` (Phase 10) | `YES` \| `NO` \| `NOT_SURE` (immutable rows; new verdicts append) |
 
 ## 5. Error-code summary
 
 | Code | Meaning here |
 |---|---|
 | 400 | Upload validation (empty, corrupt, declared/magic mismatch); invalid relation ids; unsupported `crop_id` (taxonomy whitelist, `allowed` listed); unknown analysis-status / review-status filter / export format; invalid field boundary (precise validator reason) |
-| 404 | Unknown image / analysis / prediction / farm / field / intervention zone / simulation run / report; stored Grad-CAM file missing |
+| 401 | Missing/invalid/expired/revoked session (carries `auth` reason + `WWW-Authenticate: Bearer`); wrong credentials (one generic message, no enumeration) |
+| 403 | Authenticated but wrong role for the action (carries `your_role` + `requires`) |
+| 404 | Unknown image / analysis / prediction / farm / field / intervention zone / simulation run / report; stored Grad-CAM file missing; **also rows outside your scope** (existence stays unconfirmed) |
+| 429 | Per-IP rate limit exceeded (bucket + `retry_after_s` + `Retry-After` header; §3.11) |
 | 409 | Prediction, Grad-CAM or zone generation requested before its analysis COMPLETED (includes current status + poll path); delete of a farm/field that still has dependents (carries the honest blocking counts); spray simulation against a field with no drawn boundary; report generation before its basis exists (prediction incomplete, or SUSPECTED without zones — actionable hint included); stored report PDF missing on disk (regenerate hint) |
 | 413 | Upload exceeds `MAX_UPLOAD_SIZE_MB` (enforced while streaming) |
 | 415 | Unrecognized image bytes (magic-byte sniff failed) |
@@ -235,7 +301,6 @@ the audited registry record — it is not itself a re-verification). Idempotent.
 
 ## 7. What lands later (documented deltas)
 
-- **Phase 10:** `/auth/*` (JWT, roles), per-user scoping, rate limiting, feedback capture.
 - **Geo growth (when a georeferenced source is ingested):** genuinely geographic zones arrive
   only with a drone orthomosaic carrying a GeoTIFF transform (post-MVP geo milestone) —
   only then does `georeference_source` become something other than `"none"` and
