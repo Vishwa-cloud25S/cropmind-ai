@@ -140,7 +140,19 @@ in-domain F1 0.974 ≥ 0.90 (corn Cercospora/gray leaf spot, n=78); smallest sup
 **`c9f454f`** (operator-approved, referencing `reports/model_evaluation/summary.json`):
 all 21 `supported_by_model` flags are now `true` in `ml/configs/taxonomy.yaml` v0.2, and
 `ml/configs/model.yaml` registers the baseline as **EVALUATED 0.1.0** — *not* PROMOTED
-(serving wiring is Phase 5), and `model_available` stays false until then.
+until the serving stack loads the checkpoint live.
+
+**Serving outcome (2026-08-11, live evidence, own commit):** with `MODEL_CHECKPOINT`
+pointed at run `20260808-180238-0.1.0`, worker job `39bec3e6` served analysis
+`6144ff30-5ecb-425a-a816-34a1d9eefb41` with **no DEMO warning** and produced a real
+prediction: `demo=false`, SUSPECTED, confidence **0.4311 (LOW band — disclosed as LOW,
+not promoted to a stronger claim)**. `model_versions` registers `v0.1.0 /
+demo=false / plantvillage@v1` next to the demo row, which stays as history. Per the
+config's own gate — "PROMOTED only when the serving stack loads it" — the baseline is
+now **PROMOTED 0.1.0** and `model_available: true` (taxonomy v0.3). The threshold set
+(`0.1`) is unchanged; the flip asserted no metric. Booting without `MODEL_CHECKPOINT`
+still serves the flagged demo model, and this card's in-domain vs PlantDoc-OOD gap
+(0.9959 vs 0.2349) stands untouched.
 
 ## 6. Limitations (travel with the model, wherever it is cited)
 

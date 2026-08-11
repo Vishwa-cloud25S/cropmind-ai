@@ -4,10 +4,10 @@
 # there is no trained model yet. Out-of-domain coverage of the same crops exists in PlantDoc
 # (CC BY 4.0) for honest field-condition evaluation.
 
-version: "0.2"
-updated: "2026-08-09"
-model_available: false
-note: "2026-08-09: supported_by_model true for all 21 classes — evidence reports/model_evaluation/summary.json (run 20260808-180238-0.1.0): every class held-out F1 >= 0.90 with support >= 20 (weakest F1 0.974 corn_cercospora_gray_leaf_spot n=78; smallest support 24 potato_healthy). These are in-domain support statements under INCONCLUSIVE banding; the PlantDoc field OOD top-1 0.2349 (coverage 17/21) is published alongside in docs/06-model-card.md. model_available stays false until the serving stack loads the checkpoint (Phase 5)."
+version: "0.3"
+updated: "2026-08-11"
+model_available: true
+note: "2026-08-09: supported_by_model true for all 21 classes — evidence reports/model_evaluation/summary.json (run 20260808-180238-0.1.0): every class held-out F1 >= 0.90 with support >= 20 (weakest F1 0.974 corn_cercospora_gray_leaf_spot n=78; smallest support 24 potato_healthy). These are in-domain support statements under INCONCLUSIVE banding; the PlantDoc field OOD top-1 0.2349 (coverage 17/21) is published alongside in docs/06-model-card.md. 2026-08-11: model_available flipped TRUE on live serving evidence (this commit) — worker job 39bec3e6 (06:00Z) loaded the real run via MODEL_CHECKPOINT with NO DEMO warning; analysis 6144ff30-5ecb-425a-a816-34a1d9eefb41 produced prediction demo=false, SUSPECTED, confidence 0.4311 (LOW band — stated as LOW, not promoted); model_versions registers v0.1.0 / demo=false / plantvillage@v1 alongside the kept demo row. Demo-mode boot (checkpoint unset) is unchanged."
 
 crops:
   - crop_id: tomato

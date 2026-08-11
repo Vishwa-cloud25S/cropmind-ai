@@ -3,16 +3,16 @@
 # Values change only with recorded evaluation evidence (reports/model_evaluation/).
 
 version: "0.1"                         # identity of the THRESHOLD SET (embedded in every prediction as threshold_version); unchanged because the bands are unchanged
-updated: "2026-08-09"
+updated: "2026-08-11"
 
 model:
   name: cropmind-leaf-classifier
   implementation: mobilenet_v3_small   # torchvision transfer-learned baseline (Phase 3)
   version: "0.1.0"                     # baseline run 20260808-180238-0.1.0 (Colab T4; checkpoint embedded meta agrees)
-  status: EVALUATED                    # NOT_TRAINED | TRAINING | EVALUATED | PROMOTED | RETIRED — PROMOTED only when the serving stack loads it (Phase 5)
+  status: PROMOTED                     # NOT_TRAINED | TRAINING | EVALUATED | PROMOTED | RETIRED — PROMOTED = the serving stack loads it live; met 2026-08-11 (see notes)
   checkpoint: "operator-local runs/20260808-180238-0.1.0/checkpoint.pt (gitignored; byte sha256 77d6e020179e010bc8e16cf60506c1242377b482ea14f32a257401d4f2afe2be; recorded pre-embedding sha256 8af96dcfd32cdcdb75bd2dafdd3654675e7792f033e09382f20898205f286b7f — save protocol documented in docs/06-model-card.md §2)"
   training_datasets: [{source: plantvillage, version: mendeley-v1, subset: [tomato, potato, corn, apple], split_version: v1}]
-  notes: "M1 baseline (docs/01 §6) trained and EVALUATED per reports/model_evaluation/summary.json — gates: in-domain top-1 0.9959 PASS; CPU latency p95 110.4 ms PASS; PlantDoc OOD top-1 0.2349 SHORTFALL (published as-is, never tuned). Weights are never committed to git."
+  notes: "M1 baseline (docs/01 §6) trained and EVALUATED per reports/model_evaluation/summary.json — gates: in-domain top-1 0.9959 PASS; CPU latency p95 110.4 ms PASS; PlantDoc OOD top-1 0.2349 SHORTFALL (published as-is, never tuned). Weights are never committed to git. PROMOTED 2026-08-11 on LIVE serving evidence: worker job 39bec3e6 loaded this checkpoint via MODEL_CHECKPOINT (no DEMO warning emitted); analysis 6144ff30-5ecb-425a-a816-34a1d9eefb41 -> prediction demo=false, SUSPECTED, confidence 0.4311 (LOW band, disclosed as LOW); model_versions row v0.1.0 / demo=false / plantvillage@v1. Booting without MODEL_CHECKPOINT still serves the flagged demo model; demo rows stay in history."
 
 demo_sample:
   checkpoint: ml/models/pretrained/sample-mobilenetv3.pt   # gitignored; regenerate via python -m ml.training.sample_model

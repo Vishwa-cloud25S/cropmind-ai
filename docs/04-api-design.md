@@ -47,8 +47,8 @@ These rules are not cosmetic — they are the product's integrity surface:
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/model-info` | Model status/version from `ml/configs/model.yaml` (`EVALUATED` for run 0.1.0 — PROMOTED only after deployment evidence), confidence bands, uncertainty/severity method labels, standing client notice |
-| GET | `/supported-crops` | Taxonomy (`ml/configs/taxonomy.yaml` v0.2): 4 crops × 21 conditions, per-condition `confidence_threshold` + `supported_by_model` (all `true` since the reviewed 2026-08-09 flip — commit `c9f454f`), `model_available: false` until the serving stack loads a checkpoint live |
+| GET | `/model-info` | Model status/version from `ml/configs/model.yaml` (`PROMOTED` for run 0.1.0 since the reviewed 2026-08-11 live-serving flip — worker job 39bec3e6, prediction demo=false), confidence bands, uncertainty/severity method labels, standing client notice |
+| GET | `/supported-crops` | Taxonomy (`ml/configs/taxonomy.yaml` v0.3): 4 crops × 21 conditions, per-condition `confidence_threshold` + `supported_by_model` (all `true` since the reviewed 2026-08-09 flip — commit `c9f454f`), `model_available: true` since the reviewed 2026-08-11 live-serving flip (analysis `6144ff30…`, demo=false, SUSPECTED 0.4311 LOW) |
 
 ### 3.3 Images
 
