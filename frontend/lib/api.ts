@@ -54,6 +54,17 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Network-retry schedule shared by request()/fetchAuthedBlob(): one immediate
+ * attempt, then waits declared in ms before retries. Tests override to zeros —
+ * the retry SEMANTICS stay identical, only wall-clock waits are skipped.
+ */
+export const RETRY_DELAYS_MS = {
+  // free-tier cold start is ~30–60 s awake-time (measured + vendor-published);
+  // the budget must cover it: immediate, +10 s, +45 s ⇒ ~55 s of patience.
+  attempts: [0, 10000, 45000],
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   // Session token rides on every call when present (Phase 10); the API is the
   // real enforcement boundary — this header only saves a round-trip.
@@ -62,38 +73,64 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...(init?.headers as Record<string, string> | undefined),
     ...(token && isSessionAlive() ? { Authorization: `Bearer ${token}` } : {}),
   };
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE}${path}`, {
-      cache: "no-store",
-      ...init,
-      headers,
-    });
-  } catch (cause) {
-    // Network-level failure (API down / unreachable): never invent a status.
-    throw new ApiError(0, {
-      detail: "cannot reach the CropMind API — is the backend running?",
-      base: API_BASE,
-      cause: cause instanceof Error ? cause.message : String(cause),
-    });
-  }
-  if (!response.ok) {
-    let detail: unknown = response.statusText;
+  const delays = RETRY_DELAYS_MS.attempts;
+  let lastTransient: ApiError | null = null;
+  for (let attempt = 0; attempt < delays.length; attempt += 1) {
+    if (attempt > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+    }
+    let response: Response;
     try {
-      const body = await response.json();
-      detail = body?.detail ?? body;
-    } catch {
-      /* non-JSON error body — keep statusText */
+      response = await fetch(`${API_BASE}${path}`, {
+        cache: "no-store",
+        ...init,
+        headers,
+      });
+    } catch (cause) {
+      // Network-level failure: the free demo host cold-starts (~1 min) and
+      // restarts after deploys — retry before concluding anything. Never invent
+      // a status code, and say why it might be waking rather than dead.
+      lastTransient = new ApiError(0, {
+        detail:
+          "cannot reach the CropMind API — the free demo host may be waking up " +
+          "(takes ~a minute after idling); retry shortly. If this persists, the backend is down.",
+        base: API_BASE,
+        cause: cause instanceof Error ? cause.message : String(cause),
+        attempts: attempt + 1,
+      });
+      continue;
     }
-    // A dead session anywhere ⇒ clear + route to /login with a return path.
-    // /auth/* 401s (wrong password etc.) are form errors, not session death.
-    if (response.status === 401 && !path.startsWith("/auth/")) {
-      handleUnauthorized();
+    // Render's edge answers 502/503 with non-JSON HTML while the service
+    // restarts — transient by definition; our own API always speaks JSON.
+    const contentType = response.headers.get("content-type") ?? "";
+    const isEdgeTransient =
+      [502, 503, 504].includes(response.status) && !contentType.includes("application/json");
+    if (!isEdgeTransient) {
+      if (!response.ok) {
+        let detail: unknown = response.statusText;
+        try {
+          const body = await response.json();
+          detail = body?.detail ?? body;
+        } catch {
+          /* non-JSON error body — keep statusText */
+        }
+        // A dead session anywhere ⇒ clear + route to /login with a return path.
+        // /auth/* 401s (wrong password etc.) are form errors, not session death.
+        if (response.status === 401 && !path.startsWith("/auth/")) {
+          handleUnauthorized();
+        }
+        throw new ApiError(response.status, detail);
+      }
+      if (response.status === 204) return undefined as T;
+      return (await response.json()) as T;
     }
-    throw new ApiError(response.status, detail);
+    lastTransient = new ApiError(response.status, {
+      detail: `the API host answered ${response.status} while restarting — retry shortly`,
+      base: API_BASE,
+      attempts: attempt + 1,
+    });
   }
-  if (response.status === 204) return undefined as T;
-  return (await response.json()) as T;
+  throw lastTransient;
 }
 
 function qs(params: Record<string, string | number | boolean | undefined>): string {

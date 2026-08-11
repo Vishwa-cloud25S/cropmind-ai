@@ -40,7 +40,7 @@ Starter ($7/mo) — or split the poller out as a second service on a paid tier.
 | Limit | Vendor-published fact | Mitigation / honest framing |
 |---|---|---|
 | Web service spin-down | free service sleeps after **15 min idle**; cold start **~1 min** ([Render docs/pricing, 2026](https://render.com/articles/platforms-with-a-real-free-tier-for-developers-in-2026)) | open the URL 2 min before a live demo; the UI loading state is honest |
-| Postgres expiry | free DB **expires 30 days** after creation, deleted after a 14-day grace (same source) | the demo dataset is throwaway by design; re-seed is `alembic upgrade head` + `app.db.seed` at boot; note the creation date in the deploy log (§6) |
+| Postgres expiry | free DB **expires 30 days** after creation, deleted after a 14-day grace (same source) | the demo dataset is throwaway by design; re-seed is `alembic upgrade head` + `app.db.seed` at boot; note the creation date in the deploy log (§7) |
 | Instance hours | **750 free hours/month** per workspace | one 24/7 service fits (744 h); a second free service would not |
 | Ephemeral disk | free services have **no persistent disk** — uploads/reports vanish on redeploy | demo uploads are 12 h TTL anyway (demo cleanup); the DB rows flag demo; nothing of record lives on the demo URL |
 | RAM | free instances: **512 MB** | measured above; watch the Render metrics tab on first boot |
@@ -81,7 +81,7 @@ Starter ($7/mo) — or split the poller out as a second service on a paid tier.
 2. Upload a leaf photo → analysis → DEMO-flagged result → zones → report PDF.
 3. Confirm: prediction payload shows `"demo": true`; PDF demo banner present; exported CSV
    filename carries the SIMULATION label.
-4. Paste both the public URL and this smoke-test outcome into the deploy log (§6).
+4. Paste both the public URL and this smoke-test outcome into the deploy log (§7).
 
 ## 4. Vercel configuration file
 
@@ -90,7 +90,23 @@ in-repo, not only in a dashboard (files win). Two settings remain dashboard-side
 design — set them during import (step B): **Root Directory = `frontend`** and
 **`NEXT_PUBLIC_API_URL`** (build-time; changing it needs a redeploy from the env-var page).
 
-## 5. What is NOT deployed (stated plainly)
+## 5. Client behaviour on the free tier (2026-08-11 hardening)
+
+The first live evening surfaced the two failure shapes this document predicts:
+
+- **Cold start** — service asleep after 15 idle minutes; the first request waits ~1 min.
+  The web client used to declare "cannot reach the API" on the first blip. It now retries
+  bounded (immediate, +10 s, +45 s — the budget covers the published wake time) and the
+  Analyze wizard keeps polling across wake-ups, showing a visible "waking up…" note instead
+  of ever mislabelling a live analysis as FAILED. A wake is stated, never hidden.
+- **Memory squeeze** — torch inference runs in the same free 512 MB process budget as the
+  API. If the instance is killed mid-inference, the job's heartbeat goes stale, is reaped and
+  retried per the Phase-5 queue rules, and the analysis ends **FAILED with the real error**
+  after 3 attempts — records never pretend success. The client retry layer above makes the
+  restart window invisible to users; the deploy log records it if it recurs, and §2's
+  RAM fallback (paid instance) applies at that point — none of this is silent.
+
+## 6. What is NOT deployed (stated plainly)
 
 - **The real model + real checkpoint.** Public demo runs the sample model by design.
 - **The drone provider integrations.** Intent-receipt seams only (docs/02 §8) — no aircraft.
@@ -98,11 +114,13 @@ design — set them during import (step B): **Root Directory = `frontend`** and
   vendor subdomains and their managed certs.
 - **Persistent artifact storage.** Ephemeral per §1 table (stated in the demo script).
 
-## 6. Deploy log (files win — the running record lives here)
+## 7. Deploy log (files win — the running record lives here)
 
 | Date (UTC) | URL | Host / shape | Outcome | Notes |
 |---|---|---|---|---|
-| _pending first deploy_ | — | — | — | fill after §3 C passes |
+| 2026-08-11 | https://cropmind-demo-api.onrender.com | Render free web (single-process demo image) + free Postgres | first build FAILED (exit 1): inline `#` comment inside a continued ENV line — fixed in `09087a3` and pinned by a test; second build live, `/health/ready` ok | build time ~7 min (torch wheel) |
+| 2026-08-11 | https://cropmind-ai-theta.vercel.app | Vercel Hobby — frontend, `NEXT_PUBLIC_API_URL` baked at build | live; CORS origin opened on Render after the URL existed (`Save and deploy`, no rebuild) | demo DB created 2026-08-11 → free Postgres expires ~2026-09-10 (§2) |
+| 2026-08-11 | same URLs | client hardening shipped (no infrastructure change) | fixed: single network blip during a cold start surfaced as "cannot reach the API" / mislabelled poll failure | client now retries within the published wake window and shows a "waking up" note; e2e smoke below re-run after this fix |
 
 Record each re-deploy as a row. If a deploy changes behaviour (e.g. RAM fallback to a paid
 instance), the change is described here and in the commit message — never only in a dashboard.

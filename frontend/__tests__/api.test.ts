@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, createFarm, errorMessage, getPredictionForAnalysis } from "@/lib/api";
+import { ApiError, createFarm, errorMessage, getAnalysis, getPredictionForAnalysis, RETRY_DELAYS_MS } from "@/lib/api";
 
 /** The error-normalization tests guard honesty plumbing: detail payloads surface verbatim. */
 
@@ -53,12 +53,61 @@ describe("request layer", () => {
     expect(errorMessage(caught)).toBe("prediction not ready");
   });
 
-  it("never invents an HTTP status on a network failure", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
-    const caught = await createFarm({ name: "Rectory" }).catch((err) => err);
-    expect(caught).toBeInstanceOf(ApiError);
-    expect(caught.status).toBe(0);
-    expect(errorMessage(caught)).toBe("cannot reach the CropMind API — is the backend running?");
+  it("never invents an HTTP status on a network failure — after honest retries", async () => {
+    const original = [...RETRY_DELAYS_MS.attempts];
+    RETRY_DELAYS_MS.attempts = [0, 0, 0]; // same attempts, zero wall-clock waits
+    try {
+      const fetchMock = vi.fn().mockRejectedValue(new TypeError("fetch failed"));
+      vi.stubGlobal("fetch", fetchMock);
+      const caught = await createFarm({ name: "Rectory" }).catch((err) => err);
+      expect(caught).toBeInstanceOf(ApiError);
+      expect(caught.status).toBe(0);
+      expect(fetchMock).toHaveBeenCalledTimes(3); // immediate + 2 retries, then the truth
+      expect(errorMessage(caught)).toContain("cannot reach the CropMind API");
+      expect(errorMessage(caught)).toContain("waking up"); // cold start stated, not denied
+    } finally {
+      RETRY_DELAYS_MS.attempts = original;
+    }
+  });
+
+  it("recovers a call that succeeds on retry (cold-start wake)", async () => {
+    const original = [...RETRY_DELAYS_MS.attempts];
+    RETRY_DELAYS_MS.attempts = [0, 0, 0];
+    try {
+      const fetchMock = vi
+        .fn()
+        .mockRejectedValueOnce(new TypeError("fetch failed"))
+        .mockResolvedValueOnce(jsonResponse(200, { analysis_id: "a-1", status: "QUEUED" }));
+      vi.stubGlobal("fetch", fetchMock);
+      const body = await getAnalysis("a-1");
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(body.analysis_id).toBe("a-1");
+    } finally {
+      RETRY_DELAYS_MS.attempts = original;
+    }
+  });
+
+  it("treats edge 502-with-HTML as transient and retries; JSON 502 from the app is not retried", async () => {
+    const original = [...RETRY_DELAYS_MS.attempts];
+    RETRY_DELAYS_MS.attempts = [0, 0, 0];
+    try {
+      const edgeHtml = new Response("<html>render waking</html>", {
+        status: 502,
+        headers: { "content-type": "text/html" },
+      });
+      const appJson = new Response(JSON.stringify({ detail: "real app error" }), {
+        status: 502,
+        headers: { "content-type": "application/json" },
+      });
+      const fetchMock = vi.fn().mockResolvedValueOnce(edgeHtml).mockResolvedValueOnce(appJson);
+      vi.stubGlobal("fetch", fetchMock);
+      const caught = await getAnalysis("a-9").catch((err) => err);
+      expect(caught).toBeInstanceOf(ApiError);
+      expect(fetchMock).toHaveBeenCalledTimes(2); // JSON 502 is an app truth — stop, don't spin
+      expect(caught.detail).toBe("real app error");
+    } finally {
+      RETRY_DELAYS_MS.attempts = original;
+    }
   });
 
   it("resolves undefined for 204 delete responses", async () => {

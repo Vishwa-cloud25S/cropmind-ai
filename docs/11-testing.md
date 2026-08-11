@@ -1,6 +1,6 @@
 # 11 — Testing & Coverage
 
-**Status:** Phase 11 · **Measured:** 2026-08-11 (commit `1513ba5` + this phase's e2e test) ·
+**Status:** Phase 11 · **Measured:** 2026-08-11 (counts re-measured at Phase 12 deploy-cleanup `77c0da0`-era) ·
 **Rule:** every number in this document is reproduced by the commands in §3; nothing aspirational
 is presented as current.
 
@@ -10,10 +10,10 @@ is presented as current.
 
 | Suite | Framework | Tests | Where it runs |
 |---|---|---|---|
-| Backend API/DB | pytest (TestClient + SQLite) | **112** | CI job `backend`, every push |
+| Backend API/DB | pytest (TestClient + SQLite) | **118** | CI job `backend`, every push |
 | ML pipeline | pytest + CPU torch | **112** | CI job `ml`, every push |
 | Simulation engine | pytest (pure stdlib) | **10** | CI job `ml`, every push |
-| Frontend components | vitest + Testing Library | **74** (12 files) | CI job `frontend`, every push |
+| Frontend components | vitest + Testing Library | **77** (12 files) | CI job `frontend`, every push |
 | Static gates | ruff · eslint · tsc --noEmit · next build | — | CI jobs, every push |
 | Integration | docker compose config + full image build | — | CI job `docker`, every push |
 
@@ -61,7 +61,7 @@ python -m pytest simulation -q --cov=simulation --cov-branch
 cd frontend && npm ci && npm run lint && npm run typecheck && npm test && npm run build
 ```
 
-## 4. Coverage — measured, and the targets we set
+## 4. Coverage — measured (at Phase-11 close; counts since grew by +6 backend, +3 frontend), and the targets we set
 
 Measured 2026-08-11 with `pytest --cov --cov-branch` (branch coverage, Python 3.13):
 
@@ -86,7 +86,7 @@ drops a floor must either restore coverage or move the floor *with the reason wr
 - `services/uploads.py` 82 %, `services/analysis.py` 80 % — residual miss is mostly defensive
   branches for corrupt-state paths.
 - Frontend: percentage is **not instrumented** (vitest runs without coverage today). The suite's
-  74 tests cover every interactive panel (wizard, analysis view, zones/reports/sim panels, auth
+  77 tests cover every interactive panel (wizard, analysis view, zones/reports/sim panels, auth
   forms); adding `--coverage` with a documented floor is a queued hardening item, stated here
   rather than implied.
 

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AnalyzeWizard from "@/components/AnalyzeWizard";
+import { ApiError } from "@/lib/api";
 import type { AnalysisCreateResponse, AnalysisStatus, ImageUploadResponse } from "@/lib/types";
 
 vi.mock("next/link", () => ({
@@ -129,6 +130,39 @@ describe("AnalyzeWizard", () => {
     expect(alert).toHaveTextContent("sample model subprocess failed");
     expect(alert).toHaveTextContent("Try again");
     expect(screen.getByText("FAILED")).toBeInTheDocument();
+  });
+
+  it("treats a network blip during polling as a wake-up, never as an analysis failure", async () => {
+    const netError = Object.assign(new Error("cannot reach the CropMind API — wakeup"), { name: "ApiError", status: 0 });
+    Object.setPrototypeOf(netError, ApiError.prototype);
+    let releaseWake: (value: AnalysisStatus) => void = () => undefined;
+    const deps = makeDeps({
+      getAnalysisFn: vi
+        .fn()
+        .mockRejectedValueOnce(netError) // first poll hits the frozen host
+        .mockImplementationOnce(
+          // host stays asleep until the test releases it — the notice must hold, not flash
+          () => new Promise<AnalysisStatus>((resolve) => { releaseWake = resolve; }),
+        )
+        .mockResolvedValue(analysisStatus("COMPLETED")),
+    });
+    const user = userEvent.setup();
+    render(<AnalyzeWizard {...deps} />);
+
+    await pickPhoto(user, new File(["jpeg-bytes"], "leaf.jpg", { type: "image/jpeg" }));
+    await user.click(screen.getByRole("button", { name: "Upload" }));
+    await user.click(screen.getByRole("button", { name: "Run analysis" }));
+
+    // the wake note appears (honest, non-fatal) and no failure is mislabelled
+    await screen.findByText(/still holding your analysis; retrying automatically/);
+    expect(screen.queryByText("FAILED")).not.toBeInTheDocument();
+
+    // host wakes up: polling resumes and the run completes
+    releaseWake?.(analysisStatus("PROCESSING"));
+    const link = await screen.findByRole("link", { name: /View the full analysis/ });
+    expect(link).toBeInTheDocument();
+    expect(screen.getByText("COMPLETED")).toBeInTheDocument();
+    expect(screen.queryByText(/still holding your analysis/)).not.toBeInTheDocument(); // notice cleared on recovery
   });
 
   it("shows farm/field pickers only when farms exist (and fields follow the chosen farm)", async () => {

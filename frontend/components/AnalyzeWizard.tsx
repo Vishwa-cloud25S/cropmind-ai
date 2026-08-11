@@ -54,6 +54,8 @@ export default function AnalyzeWizard(props: WizardDeps) {
   const [analysis, setAnalysis] = useState<AnalysisStatus | null>(null);
   const [signedIn, setSignedIn] = useState(true); // assumed true until mount-probed (avoids SSR/CSR mismatch)
   const [busy, setBusy] = useState(false);
+  const [warmingNotice, setWarmingNotice] = useState<string | null>(null); // transient wake-up, NOT a failure
+  const transientPollMisses = useRef(0);
 
   const [farms, setFarms] = useState<Farm[] | null>(null);
   const [farmId, setFarmId] = useState<string>("");
@@ -144,6 +146,8 @@ export default function AnalyzeWizard(props: WizardDeps) {
     async (analysisId: string) => {
       try {
         const status = await getAnalysisFn(analysisId);
+        transientPollMisses.current = 0;
+        setWarmingNotice(null);
         setAnalysis(status);
         if (status.status === "COMPLETED") {
           stopPolling();
@@ -155,6 +159,17 @@ export default function AnalyzeWizard(props: WizardDeps) {
         }
       } catch (err) {
         if (err instanceof ApiError && err.status === 404) return; // transient race: row not visible yet
+        // Network/edge-restart blips are NOT analysis failures: the row lives on the
+        // server and the poll must keep going. Only repeated failures give up, and
+        // they say so honestly instead of mislabelling the analysis as FAILED.
+        const transient = err instanceof ApiError && (err.status === 0 || err.status >= 500);
+        if (transient && transientPollMisses.current < 6) {
+          transientPollMisses.current += 1;
+          setWarmingNotice(
+            "the demo API is waking up or restarting — still holding your analysis; retrying automatically",
+          );
+          return;
+        }
         stopPolling();
         setServerError(errorMessage(err));
         setStep("failed");
@@ -200,6 +215,8 @@ export default function AnalyzeWizard(props: WizardDeps) {
     setFile(null);
     setFileError(null);
     setServerError(null);
+    setWarmingNotice(null);
+    transientPollMisses.current = 0;
     setUpload(null);
     setAnalysis(null);
     setBusy(false);
@@ -337,6 +354,11 @@ export default function AnalyzeWizard(props: WizardDeps) {
               </span>
             ) : null}
           </div>
+          {warmingNotice ? (
+            <p className="alert-caution mt-2" role="note">
+              {warmingNotice}
+            </p>
+          ) : null}
           {step === "complete" ? (
             <div className="alert-info mt-3" role="note">
               Ready.{" "}
