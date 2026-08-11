@@ -3,11 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 
-import { errorMessage, reviewZone, zoneExportUrl } from "@/lib/api";
+import { downloadAuthedFile, errorMessage, reviewZone, zoneExportUrl } from "@/lib/api";
 import type { DecisionSupport, InterventionZone, ReviewStatus, RiskLevel } from "@/lib/types";
 
 export interface ZonesDeps {
   reviewZoneFn?: typeof reviewZone;
+  downloadFn?: typeof downloadAuthedFile; // DI seam: tests pin the authenticated export path
   onChanged?: () => void; // parent re-reads from the API after any review transition
 }
 
@@ -43,6 +44,18 @@ export default function ZonesPanel({
 
   const [error, setError] = useState<string | null>(null);
   const [busyZone, setBusyZone] = useState<string | null>(null);
+
+  /** Zone exports are owner-scoped routes: a bare <a href> carries no session token
+   * and gets the by-design 404 — go through the authenticated blob path. The server
+   * sets the SIMULATION-labelled filename via Content-Disposition. */
+  const downloadFn = props.downloadFn ?? downloadAuthedFile;
+
+  function exportZones(format: "geojson" | "csv") {
+    setError(null);
+    downloadFn(zoneExportUrl({ fieldId, format }), `cropmind-zone-simulation.${format}`).catch((cause) =>
+      setError(errorMessage(cause))
+    );
+  }
 
   async function review(zone: InterventionZone, status: "APPROVED" | "REJECTED") {
     setBusyZone(zone.id);
@@ -85,12 +98,20 @@ export default function ZonesPanel({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-bold text-stone-900">Intervention zones ({zones.length})</h2>
           <div className="flex items-center gap-2">
-            <a className="btn-secondary" href={zoneExportUrl({ fieldId, format: "geojson" })} download>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => exportZones("geojson")}
+            >
               Export GeoJSON
-            </a>
-            <a className="btn-secondary" href={zoneExportUrl({ fieldId, format: "csv" })} download>
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => exportZones("csv")}
+            >
               Export CSV
-            </a>
+            </button>
           </div>
         </div>
         <p className="mt-1 text-xs leading-5 text-stone-500">

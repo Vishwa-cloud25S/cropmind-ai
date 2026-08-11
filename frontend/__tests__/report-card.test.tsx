@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import ReportCard from "@/components/ReportCard";
 import { API_BASE } from "@/lib/api";
@@ -80,10 +80,25 @@ describe("ReportCard (stored-report honesty preview)", () => {
     expect(screen.getByText(/analysed without a field link/)).toBeInTheDocument();
   });
 
-  it("download points at the stored PDF artifact", () => {
-    render(<ReportCard report={REPORT} />);
-    const link = screen.getByRole("link", { name: /download pdf report/i });
-    expect(link).toHaveAttribute("href", `${API_BASE}/reports/rpt-uuid-1/download`);
+  it("download goes through the authenticated blob path with the report's own filename", async () => {
+    // Regression: a bare anchor navigation carries no session token, so owner-scoped
+    // reports answered the by-design 404. The card must download via the injected fn.
+    const download = vi.fn().mockResolvedValue(undefined);
+    render(<ReportCard report={REPORT} downloadFn={download} />);
+    fireEvent.click(screen.getByRole("button", { name: /download pdf report/i }));
+    await waitFor(() =>
+      expect(download).toHaveBeenCalledWith(
+        `${API_BASE}/reports/rpt-uuid-1/download`,
+        "cropmind-field-report-CMA-20260809-AB12CD.pdf"
+      )
+    );
+  });
+
+  it("download failure is visible, never silent", async () => {
+    const download = vi.fn().mockRejectedValue(new Error("404 report not found"));
+    render(<ReportCard report={REPORT} downloadFn={download} />);
+    fireEvent.click(screen.getByRole("button", { name: /download pdf report/i }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/download failed/i));
   });
 
   it("INCONCLUSIVE reports render as abstentions, not findings", () => {

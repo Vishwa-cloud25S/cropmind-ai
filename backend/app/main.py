@@ -49,6 +49,10 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        # Binary artifacts (report PDFs, zone exports) are downloaded via authenticated
+        # fetch → blob; expose Content-Disposition so the browser can read the
+        # server-set, honestly-labelled filename (simulation/report IDs travel in it).
+        expose_headers=["Content-Disposition"],
     )
     app.include_router(api_router)
     return app

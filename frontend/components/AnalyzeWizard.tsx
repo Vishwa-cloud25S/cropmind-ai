@@ -16,6 +16,7 @@ import { getAnalysis } from "@/lib/api";
 import { isSessionAlive } from "@/lib/auth";
 import type { AnalysisState, AnalysisStatus, Farm, FieldRecord, ImageRecord } from "@/lib/types";
 import { AnalysisStatusChip } from "@/components/StatusBadge";
+import AuthedImage from "@/components/AuthedImage";
 
 const MAX_BYTES = 25 * 1024 * 1024; // mirrors the backend default; server still enforces its own
 const ACCEPT_ATTR = "image/jpeg,image/png,image/webp,image/tiff";
@@ -300,14 +301,12 @@ export default function AnalyzeWizard(props: WizardDeps) {
             </p>
           ) : null}
           <div className="mt-3 flex flex-wrap items-center gap-4">
-            {/* Server-side re-encode thumbnail; EXIF orientation normalized at upload */}
-            {/* eslint-disable-next-line @next/next/no-img-element -- dynamic API image URL */}
-            <img
-              src={imageDownloadUrl(upload.image.id, true)}
+            {/* Server-side re-encode thumbnail; EXIF orientation normalized at upload.
+                 Owner-scoped route — bytes must come through the authenticated fetch. */}
+            <AuthedImage
+              url={imageDownloadUrl(upload.image.id, true)}
               alt="Thumbnail of the stored upload"
               className="h-20 w-20 rounded-lg border border-stone-200 object-cover"
-              width={80}
-              height={80}
             />
             <dl className="text-sm text-stone-700">
               <dt className="field-label inline">Dimensions</dt>{" "}

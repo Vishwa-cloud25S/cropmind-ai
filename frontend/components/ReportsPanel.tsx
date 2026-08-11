@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-import { errorMessage, listReports, reportDownloadUrl } from "@/lib/api";
+import { downloadAuthedFile, errorMessage, listReports, reportDownloadUrl } from "@/lib/api";
 import type { ReportPayload, ReportList } from "@/lib/types";
 import { DemoBadge, PredictionStatusChip } from "@/components/StatusBadge";
 
@@ -90,6 +90,7 @@ export default function ReportsPanel({ listFn }: ReportsPanelDeps = {}) {
 }
 
 function ReportRow({ report }: { report: ReportPayload }) {
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const facts = report.key_facts;
   return (
     <tr>
@@ -125,9 +126,25 @@ function ReportRow({ report }: { report: ReportPayload }) {
         <DemoBadge demo={report.demo} />
       </td>
       <td className="text-right">
-        <a href={reportDownloadUrl(report.id)} className="btn-secondary inline-block text-xs" download>
+        <button
+          type="button"
+          className="btn-secondary inline-block text-xs"
+          onClick={() => {
+            // Authenticated blob download — owner-scoped rows 404 for a bare link.
+            setDownloadError(null);
+            downloadAuthedFile(
+              reportDownloadUrl(report.id),
+              `cropmind-field-report-${report.report_id}.pdf`
+            ).catch((cause) => setDownloadError(errorMessage(cause)));
+          }}
+        >
           PDF ↓
-        </a>
+        </button>
+        {downloadError ? (
+          <p className="mt-1 text-right text-xs text-red-700" role="alert">
+            download failed — {downloadError}
+          </p>
+        ) : null}
       </td>
     </tr>
   );

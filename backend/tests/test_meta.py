@@ -42,3 +42,13 @@ def test_model_info_reports_promoted_baseline(client):
     assert body["model"]["version"] == "0.1.0"
     bands = body["confidence_bands"]
     assert 0 < bands["low"] < bands["medium"] < bands["high"] < 1
+
+
+def test_cors_exposes_content_disposition_for_blob_downloads(client):
+    """Binary artifacts are downloaded via authenticated fetch (Phase 10+ fix — bare
+    <a href> carries no token and hits the by-design 404 for owner-scoped rows). The
+    fetch must be able to READ the server-set filename: Content-Disposition exposed."""
+    response = client.get("/health", headers={"Origin": "http://localhost:3000"})
+    assert response.status_code == 200
+    exposed = {h.strip().lower() for h in response.headers.get("access-control-expose-headers", "").split(",")}
+    assert "content-disposition" in exposed

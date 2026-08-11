@@ -1,4 +1,5 @@
 import { normalizedRingCentroid, normalizedRingToSvgPoints } from "@/lib/geo";
+import AuthedImage from "@/components/AuthedImage";
 
 export interface OverlayPolygon {
   ring: number[][]; // normalized xyxy positions (0..1), closed or open
@@ -26,8 +27,8 @@ export default function ImageSpaceOverlay({
   return (
     <figure>
       <div className="relative w-full overflow-hidden rounded-lg border border-stone-200">
-        {/* eslint-disable-next-line @next/next/no-img-element -- dynamic API image URL */}
-        <img src={imageUrl} alt={imageAlt} className="block w-full" />
+        {/* Owner-scoped stored upload — authenticated fetch, honest failure text */}
+        <AuthedImage url={imageUrl} alt={imageAlt} className="block w-full" />
         <svg
           viewBox="0 0 1 1"
           preserveAspectRatio="none"

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ApiError, errorMessage, getAnalysis, getPredictionForAnalysis, gradcamUrl, imageDownloadUrl } from "@/lib/api";
 import type { AnalysisStatus, Prediction } from "@/lib/types";
 import PredictionCard from "@/components/PredictionCard";
+import AuthedImage from "@/components/AuthedImage";
 import FeedbackPanel from "@/components/FeedbackPanel";
 import ReportPanel from "@/components/ReportPanel";
 import { AnalysisStatusChip } from "@/components/StatusBadge";
@@ -30,6 +31,7 @@ export default function AnalysisView({ analysisId, ...props }: AnalysisViewDeps 
   const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
+  const [gradcamVisible, setGradcamVisible] = useState(true);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPolling = useCallback(() => {
@@ -170,28 +172,28 @@ export default function AnalysisView({ analysisId, ...props }: AnalysisViewDeps 
           </p>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <figure>
-              {/* eslint-disable-next-line @next/next/no-img-element -- dynamic API image URL */}
-              <img
-                src={imageDownloadUrl(status.image_id)}
+              {/* Owner-scoped route: bytes fetched with the session token (AuthedImage) */}
+              <AuthedImage
+                url={imageDownloadUrl(status.image_id)}
                 alt="Your stored upload, server-normalized"
                 className="w-full rounded-lg border border-stone-200 object-contain"
               />
               <figcaption className="mt-1 text-xs text-stone-500">Stored upload (normalized, EXIF re-orientated)</figcaption>
             </figure>
-            <figure>
-              {/* eslint-disable-next-line @next/next/no-img-element -- dynamic API image URL */}
-              <img
-                src={gradcamUrl(analysisId)}
-                alt="Grad-CAM overlay: regions that contributed strongly to the machine's prediction"
-                className="w-full rounded-lg border border-stone-200 object-contain"
-                onError={(event) => {
-                  event.currentTarget.closest("figure")?.setAttribute("hidden", "");
-                }}
-              />
-              <figcaption className="mt-1 text-xs text-stone-500">
-                Grad-CAM overlay — strong contributors to the prediction, not a disease-location guarantee
-              </figcaption>
-            </figure>
+            {gradcamVisible ? (
+              <figure>
+                <AuthedImage
+                  url={gradcamUrl(analysisId)}
+                  alt="Grad-CAM overlay: regions that contributed strongly to the machine's prediction"
+                  className="w-full rounded-lg border border-stone-200 object-contain"
+                  hideOnError
+                  onError={() => setGradcamVisible(false)}
+                />
+                <figcaption className="mt-1 text-xs text-stone-500">
+                  Grad-CAM overlay — strong contributors to the prediction, not a disease-location guarantee
+                </figcaption>
+              </figure>
+            ) : null}
           </div>
         </section>
       ) : null}

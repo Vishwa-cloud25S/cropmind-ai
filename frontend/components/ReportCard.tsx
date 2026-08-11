@@ -1,4 +1,8 @@
-import { reportDownloadUrl } from "@/lib/api";
+"use client";
+
+import { useState } from "react";
+
+import { downloadAuthedFile, errorMessage, reportDownloadUrl } from "@/lib/api";
 import type { ReportPayload } from "@/lib/types";
 import { DemoBadge, PredictionStatusChip } from "@/components/StatusBadge";
 
@@ -6,11 +10,34 @@ import { DemoBadge, PredictionStatusChip } from "@/components/StatusBadge";
  * The READY report surfaced in the UI — pure presentational (vitest-friendly).
  * Renders the stored build basis verbatim: Suspected phrasing, review ledger,
  * demo flag. The PDF download is the artifact of record (files win); this card
- * is its honest preview, never a re-derivation.
+ * is its honest preview, never a re-derivation. Download goes through the
+ * authenticated blob path: a plain anchor carries no session token and the API
+ * answers owner-scoped reports with the by-design 404.
  */
-export default function ReportCard({ report }: { report: ReportPayload }) {
+export default function ReportCard({
+  report,
+  downloadFn = downloadAuthedFile,
+}: {
+  report: ReportPayload;
+  downloadFn?: (url: string, fallbackName: string) => Promise<void>;
+}) {
   const basis = report.basis;
   const href = reportDownloadUrl(report.id);
+  const fileName = `cropmind-field-report-${report.report_id}.pdf`;
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  async function handleDownload() {
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      await downloadFn(href, fileName);
+    } catch (cause) {
+      setDownloadError(errorMessage(cause));
+    } finally {
+      setDownloading(false);
+    }
+  }
   return (
     <article aria-labelledby="report-heading" className="card space-y-4" data-testid="report-card">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -77,13 +104,18 @@ export default function ReportCard({ report }: { report: ReportPayload }) {
       ) : null}
 
       <div className="flex flex-wrap items-center gap-3">
-        <a href={href} className="btn-primary" download>
-          Download PDF report
-        </a>
+        <button type="button" className="btn-primary" onClick={handleDownload} disabled={downloading}>
+          {downloading ? "Downloading…" : "Download PDF report"}
+        </button>
         <p className="text-xs leading-5 text-stone-500">
           Decision support only — suspected finding, human review status included; no product or dosage content.
         </p>
       </div>
+      {downloadError ? (
+        <p className="alert-error" role="alert">
+          Download failed — {downloadError} (the report stays stored; generation is not redone by retrying a download)
+        </p>
+      ) : null}
     </article>
   );
 }

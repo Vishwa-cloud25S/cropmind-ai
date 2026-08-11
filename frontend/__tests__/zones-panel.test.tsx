@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -92,15 +92,23 @@ describe("ZonesPanel (honesty surface)", () => {
     expect(alert).toHaveTextContent("network down");
   });
 
-  it("points both export buttons at the labelled download endpoints", () => {
-    render(<ZonesPanel zones={[ZONE]} decisionSupport={SUPPORT} fieldId="field-3" />);
-    expect(screen.getByRole("link", { name: "Export GeoJSON" })).toHaveAttribute(
-      "href",
-      `${API_BASE}/intervention-zones/export?field_id=field-3&format=geojson`,
+  it("exports go through the authenticated blob path to the labelled endpoints", async () => {
+    // Regression: bare anchors carry no session token; owner-scoped exports 404 by design.
+    const download = vi.fn().mockResolvedValue(undefined);
+    render(<ZonesPanel zones={[ZONE]} decisionSupport={SUPPORT} fieldId="field-3" downloadFn={download} />);
+    fireEvent.click(screen.getByRole("button", { name: "Export GeoJSON" }));
+    await waitFor(() =>
+      expect(download).toHaveBeenCalledWith(
+        `${API_BASE}/intervention-zones/export?field_id=field-3&format=geojson`,
+        "cropmind-zone-simulation.geojson"
+      )
     );
-    expect(screen.getByRole("link", { name: "Export CSV" })).toHaveAttribute(
-      "href",
-      `${API_BASE}/intervention-zones/export?field_id=field-3&format=csv`,
+    fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+    await waitFor(() =>
+      expect(download).toHaveBeenCalledWith(
+        `${API_BASE}/intervention-zones/export?field_id=field-3&format=csv`,
+        "cropmind-zone-simulation.csv"
+      )
     );
   });
 

@@ -149,6 +149,56 @@ export function listPredictions(limit = 5): Promise<PredictionList> {
 export const imageDownloadUrl = (imageId: string, thumb = false) =>
   `${API_BASE}/images/${imageId}/download${thumb ? "?thumb=true" : ""}`;
 
+/**
+ * Authenticated byte fetch for owner-scoped binary routes (report PDFs, zone
+ * exports, stored imagery, Grad-CAM). A plain <a href> / <img src> navigation
+ * carries no session token, so the API answers those routes with the by-design
+ * 404 ("existence unconfirmed"); bytes must come through this helper with the
+ * Bearer header attached, exactly like JSON calls. Failure surfaces the real
+ * status — a download never silently succeeds.
+ */
+export async function fetchAuthedBlob(url: string): Promise<{ blob: Blob; filename: string | null }> {
+  const token = getToken();
+  const response = await fetch(url, {
+    cache: "no-store",
+    headers: token && isSessionAlive() ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) {
+    let detail: unknown = response.statusText;
+    try {
+      const body = await response.json();
+      detail = body?.detail ?? body;
+    } catch {
+      /* non-JSON error body — keep statusText */
+    }
+    if (response.status === 401) handleUnauthorized();
+    throw new ApiError(response.status, { detail });
+  }
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const match = /filename="?([^";]+)"?/i.exec(disposition);
+  return { blob: await response.blob(), filename: match ? match[1] : null };
+}
+
+/**
+ * Byte-exact download of an artifact of record: the server-set filename from
+ * Content-Disposition wins (it carries the honest SIMULATION/report labelling);
+ * the caller's fallback is only for responses missing the header.
+ */
+export async function downloadAuthedFile(url: string, fallbackName: string): Promise<void> {
+  const { blob, filename } = await fetchAuthedBlob(url);
+  const objectUrl = URL.createObjectURL(blob);
+  try {
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = filename ?? fallbackName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 export const gradcamUrl = (analysisId: string) => `${API_BASE}/analyses/${analysisId}/gradcam`;
 
 // ── farms & fields ────────────────────────────────────────────────────────────

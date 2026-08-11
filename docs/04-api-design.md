@@ -235,6 +235,16 @@ on, anonymous callers may upload+analyse with `demo=true` only — stored as `DE
 always flagged. Content dedupe is global (sha256): identical bytes under another
 account answer an honest 409 instead of a metadata peek.
 
+**Binary artifacts (2026-08-11 hardening).** Report PDFs, zone exports, stored imagery
+and Grad-CAM overlays are served from the same scoped routes, so they obey the same
+visibility rule — which means a bare browser navigation (`<a href>` / `<img src>`,
+which carries no `Authorization` header) anonymously hits the by-design 404 even when
+the row exists. The frontend therefore downloads/shows every artifact through an
+authenticated `fetch` → blob (object URL), and CORS exposes `Content-Disposition` so
+the server-set, honestly-labelled filename reaches the browser. A failed download
+surfaces the real status in the UI — it never silently succeeds or shows a broken
+image; error pages are not a workaround surface.
+
 | Method | Path | Description |
 |---|---|---|
 | POST | `/auth/register` | **201** `{access_token, token_type, expires_at, expires_in_s, user, role_note}`. Email sanity + password policy (≥10 chars, letter+digit — unmet rules listed verbatim, 422); 409 existing address (signup enumeration stated, mitigation post-MVP); first account = ADMIN |
