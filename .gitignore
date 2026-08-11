@@ -62,3 +62,4 @@ reports/datasets/*
 .idea/
 Thumbs.db
 *.tsbuildinfo
+.coverage

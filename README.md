@@ -186,11 +186,14 @@ working, not a bug.
 | [Taxonomy & model config](ml/configs) — what the model does/doesn't support | ✅ Phase 1 (live via `/supported-crops`, `/model-info`) |
 | [05 — ML pipeline](docs/05-ml-pipeline.md) · [06 — Model card](docs/06-model-card.md) · [07 — Data card](docs/07-data-card.md) | ✅ Phases 3–4 (v1; formal gates measured from the operator's eval report) |
 | [04 — API design](docs/04-api-design.md) | ✅ Phase 5 (synced with `backend/app/api/v1/`) |
-| Security, privacy, testing, deployment, user guide, limitations, responsible-AI | Planned (Phases 6–13 per roadmap) |
+| [09 — Security posture](docs/09-security.md) · [10 — Privacy notice](docs/10-privacy.md) · [11 — Testing & coverage](docs/11-testing.md) · [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) | ✅ Phase 11 |
+| Deployment, user guide, limitations, responsible-AI | Planned (Phases 12–13 per roadmap) |
 
 ## License
 
 Source code license to be confirmed by the founder before public release (default candidate: MIT).
 Datasets are **not** redistributed by this repository; each retains its own license — see
-[docs/datasets.md](docs/datasets.md). Third-party dependency licenses will be tracked in
-`THIRD_PARTY_LICENSES.md` (Phase 11).
+[docs/datasets.md](docs/datasets.md). Third-party dependency licenses are audited in
+[THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) — including the two a reviewer should see
+first: psycopg is LGPL-3.0 (used unmodified) and react-leaflet is Hippocratic-2.1 (ethical-use,
+not OSI-approved — flagged for legal review).
