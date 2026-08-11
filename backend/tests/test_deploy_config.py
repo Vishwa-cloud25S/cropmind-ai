@@ -57,6 +57,19 @@ def test_demo_image_runs_migrate_seed_worker_api_in_one_process() -> None:
     assert "NOT the production shape" in start
 
 
+def test_demo_dockerfile_has_no_comments_inside_continued_statements() -> None:
+    """Render's builder rejects `#` inside a continued ENV/RUN line (found live
+    2026-08-11 — first demo build). Comments belong above the instruction."""
+    import re
+
+    continued = re.compile(r"\\\s*$")
+    comment_inside = re.compile(r"(?<=\S)\s+#")
+    lines = _read("docker/demo.Dockerfile").splitlines()
+    for idx, line in enumerate(lines):
+        if continued.search(line) or (idx > 0 and continued.search(lines[idx - 1])):
+            assert not comment_inside.search(line.strip()), f"inline comment inside continued statement at line {idx + 1}: {line!r}"
+
+
 def test_deploy_doc_records_free_tier_limits_and_fallbacks() -> None:
     doc = _read("docs/12-deployment.md")
     for fact in ("15 min", "30 days", "750 free hours", "512 MB", "DEMO_MODE=true"):

@@ -10,10 +10,14 @@
 # deterministic DEMO sample model; every prediction is flagged demo=true.
 FROM python:3.12-slim
 
+# Comments are NOT legal inside a continued ENV statement (Render build 2026-08-11
+# failed exactly there) — keep them above the instruction.
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    OMP_NUM_THREADS=1  # single shared vCPU on free tier — keep torch single-threaded
+    OMP_NUM_THREADS=1
+
+# OMP_NUM_THREADS=1 above: single shared vCPU on free tier — keep torch single-threaded.
 
 WORKDIR /app
 
