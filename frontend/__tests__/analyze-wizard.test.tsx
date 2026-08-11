@@ -136,16 +136,15 @@ describe("AnalyzeWizard", () => {
     const netError = Object.assign(new Error("cannot reach the CropMind API — wakeup"), { name: "ApiError", status: 0 });
     Object.setPrototypeOf(netError, ApiError.prototype);
     let releaseWake: (value: AnalysisStatus) => void = () => undefined;
-    const deps = makeDeps({
-      getAnalysisFn: vi
-        .fn()
-        .mockRejectedValueOnce(netError) // first poll hits the frozen host
-        .mockImplementationOnce(
-          // host stays asleep until the test releases it — the notice must hold, not flash
-          () => new Promise<AnalysisStatus>((resolve) => { releaseWake = resolve; }),
-        )
-        .mockResolvedValue(analysisStatus("COMPLETED")),
-    });
+    const getAnalysisMock = vi
+      .fn()
+      .mockRejectedValueOnce(netError) // first poll hits the frozen host
+      .mockImplementationOnce(
+        // host stays asleep until the test releases it — the notice must hold, not flash
+        () => new Promise<AnalysisStatus>((resolve) => { releaseWake = resolve; }),
+      )
+      .mockResolvedValue(analysisStatus("COMPLETED"));
+    const deps = makeDeps({ getAnalysisFn: getAnalysisMock });
     const user = userEvent.setup();
     render(<AnalyzeWizard {...deps} />);
 
@@ -157,9 +156,9 @@ describe("AnalyzeWizard", () => {
     await screen.findByText(/still holding your analysis; retrying automatically/);
     expect(screen.queryByText("FAILED")).not.toBeInTheDocument();
 
-    // wait until the SECOND poll is suspended mid-wake (CI timing differs from local),
-    // then wake the host: polling resumes and the run completes
-    await waitFor(() => expect(deps.getAnalysisFn).toHaveBeenCalledTimes(2));
+    // wait until the suspended-wake poll is in flight (CI timing differs from local —
+    // slower runners may already be a poll-cycle ahead; only the lower bound matters)
+    await waitFor(() => expect(getAnalysisMock.mock.calls.length).toBeGreaterThanOrEqual(2));
     releaseWake(analysisStatus("PROCESSING"));
     const link = await screen.findByRole("link", { name: /View the full analysis/ });
     expect(link).toBeInTheDocument();
