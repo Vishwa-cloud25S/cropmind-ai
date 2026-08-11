@@ -1,0 +1,34 @@
+# Render blueprint — public demo deployment (Phase 12).
+# One free web service (API + in-process worker, see docker/demo-start.sh) + free Postgres.
+# Honest limits live in docs/12-deployment.md (spin-down, 30-day DB expiry, ephemeral disk).
+services:
+  - type: web
+    name: cropmind-demo-api
+    env: docker
+    dockerfilePath: ./docker/demo.Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health/ready
+    envVars:
+      - key: APP_ENV
+        value: production
+      # Public demo truth: no real checkpoint ships (AD-008). DEMO sample model,
+      # every prediction flagged demo=true. Never set DEMO_MODE=false here.
+      - key: DEMO_MODE
+        value: "true"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cropmind-demo-db
+          property: connectionString
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      # Set AFTER the Vercel URL exists (step order in docs/12-deployment.md):
+      # value like https://<project>.vercel.app — comma-separated list is supported.
+      - key: CORS_ORIGINS
+        sync: false
+
+databases:
+  - name: cropmind-demo-db
+    plan: free
+    # Render free Postgres: 1 GB, expires 30 days after creation (14-day grace).
+    # Demo data is throwaway by design; the expiry is documented, not worked around.

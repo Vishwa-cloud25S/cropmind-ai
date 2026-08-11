@@ -186,8 +186,9 @@ working, not a bug.
 | [Taxonomy & model config](ml/configs) — what the model does/doesn't support | ✅ Phase 1 (live via `/supported-crops`, `/model-info`) |
 | [05 — ML pipeline](docs/05-ml-pipeline.md) · [06 — Model card](docs/06-model-card.md) · [07 — Data card](docs/07-data-card.md) | ✅ Phases 3–4 (v1; formal gates measured from the operator's eval report) |
 | [04 — API design](docs/04-api-design.md) | ✅ Phase 5 (synced with `backend/app/api/v1/`) |
+| [12 — Deployment](docs/12-deployment.md) (blueprint + demo image land at Phase 12; public demo URL recorded in its §6 log once the operator deploys) | ⏳ Phase 12 |
 | [09 — Security posture](docs/09-security.md) · [10 — Privacy notice](docs/10-privacy.md) · [11 — Testing & coverage](docs/11-testing.md) · [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) | ✅ Phase 11 |
-| Deployment, user guide, limitations, responsible-AI | Planned (Phases 12–13 per roadmap) |
+| User guide, limitations, responsible-AI | Planned (Phase 13 per roadmap) |
 
 ## License
 

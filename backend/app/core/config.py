@@ -3,6 +3,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -40,6 +41,17 @@ class Settings(BaseSettings):
     rate_limit_enabled: bool = True  # in-memory per-process buckets (single instance; Redis-class store post-MVP)
     rate_limit_auth_per_minute: int = 10  # /auth/register + /auth/login per IP — brute-force brake
     rate_limit_write_per_minute: int = 120  # all other mutating calls per IP
+
+    @field_validator("database_url")
+    @classmethod
+    def _normalize_database_url(cls, value: str) -> str:
+        """Hosts hand out bare ``postgres://`` or ``postgresql://`` URLs (Render, Supabase).
+        The app pins the psycopg-3 driver — normalize instead of asking operators to
+        hand-edit the pasted connection string."""
+        for scheme in ("postgres://", "postgresql://"):
+            if value.startswith(scheme):
+                return "postgresql+psycopg://" + value[len(scheme) :]
+        return value
 
     @property
     def cors_origin_list(self) -> list[str]:

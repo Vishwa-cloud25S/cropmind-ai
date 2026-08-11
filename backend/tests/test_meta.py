@@ -52,3 +52,20 @@ def test_cors_exposes_content_disposition_for_blob_downloads(client):
     assert response.status_code == 200
     exposed = {h.strip().lower() for h in response.headers.get("access-control-expose-headers", "").split(",")}
     assert "content-disposition" in exposed
+
+
+def test_database_url_normalizes_bare_host_schemes():
+    """Hosts (Render, Supabase) hand back bare postgres:// or postgresql:// URLs;
+    the app pins psycopg-3 — the scheme normalizer runs in Settings itself."""
+    from app.core.config import Settings
+
+    s = Settings(database_url="postgresql://u:p@host:5432/db")
+    assert s.database_url == "postgresql+psycopg://u:p@host:5432/db"
+    s2 = Settings(database_url="postgres://u:p@host:5432/db")
+    assert s2.database_url == "postgresql+psycopg://u:p@host:5432/db"
+    # already-qualified local dev URL is untouched
+    s3 = Settings(database_url="postgresql+psycopg://cropmind:local@localhost:5432/cropmind")
+    assert s3.database_url.startswith("postgresql+psycopg://")
+    # sqlite (test suites) untouched
+    s4 = Settings(database_url="sqlite+pysqlite:////tmp/x.db")
+    assert s4.database_url.startswith("sqlite")
