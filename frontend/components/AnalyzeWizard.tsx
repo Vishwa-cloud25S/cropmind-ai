@@ -63,7 +63,9 @@ export default function AnalyzeWizard(props: WizardDeps) {
   const [fieldId, setFieldId] = useState<string>("");
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stoppedRef = useRef(false); // latched: in-flight responses may never overwrite a terminal state
   const stopPolling = useCallback(() => {
+    stoppedRef.current = true;
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = null;
   }, []);
@@ -144,8 +146,10 @@ export default function AnalyzeWizard(props: WizardDeps) {
 
   const poll = useCallback(
     async (analysisId: string) => {
+      if (stoppedRef.current) return; // stopped while a previous call was in flight
       try {
         const status = await getAnalysisFn(analysisId);
+        if (stoppedRef.current) return; // late response: terminal state already latched
         transientPollMisses.current = 0;
         setWarmingNotice(null);
         setAnalysis(status);
@@ -200,6 +204,8 @@ export default function AnalyzeWizard(props: WizardDeps) {
       });
       setStep("running");
       stopPolling();
+      stoppedRef.current = false; // a fresh run re-arms the latch stopPolling just set
+      transientPollMisses.current = 0;
       void poll(response.analysis_id);
       pollRef.current = setInterval(() => void poll(response.analysis_id), pollMs);
     } catch (err) {

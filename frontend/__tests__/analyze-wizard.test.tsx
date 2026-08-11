@@ -157,8 +157,10 @@ describe("AnalyzeWizard", () => {
     await screen.findByText(/still holding your analysis; retrying automatically/);
     expect(screen.queryByText("FAILED")).not.toBeInTheDocument();
 
-    // host wakes up: polling resumes and the run completes
-    releaseWake?.(analysisStatus("PROCESSING"));
+    // wait until the SECOND poll is suspended mid-wake (CI timing differs from local),
+    // then wake the host: polling resumes and the run completes
+    await waitFor(() => expect(deps.getAnalysisFn).toHaveBeenCalledTimes(2));
+    releaseWake(analysisStatus("PROCESSING"));
     const link = await screen.findByRole("link", { name: /View the full analysis/ });
     expect(link).toBeInTheDocument();
     expect(screen.getByText("COMPLETED")).toBeInTheDocument();

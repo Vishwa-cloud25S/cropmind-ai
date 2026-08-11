@@ -74,4 +74,9 @@ def test_deploy_doc_records_free_tier_limits_and_fallbacks() -> None:
     doc = _read("docs/12-deployment.md")
     for fact in ("15 min", "30 days", "750 free hours", "512 MB", "DEMO_MODE=true"):
         assert fact in doc, f"docs/12 must keep stating the free-tier fact: {fact}"
-    assert "pending first deploy" in doc  # deploy log starts empty, not invented
+    # 2026-08-11: deploy happened — the §7 log must now hold the real rows (URLs, dates,
+    # the failed first build) and never again the pre-deploy placeholder.
+    assert "pending first deploy" not in doc
+    assert "cropmind-ai-theta.vercel.app" in doc
+    assert "cropmind-demo-api.onrender.com" in doc
+    assert "09087a3" in doc  # the honest failure row stays on record
