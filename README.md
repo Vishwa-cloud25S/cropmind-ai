@@ -21,7 +21,7 @@
 > band) - retake photo or request agronomist review` — rather than invent a confident
 > disease label. That refusal is the product.
 
-## ⚡ Hook highlights (all receipts, no slogans)
+## ⚡Highlights (all receipts, no slogans)
 
 - **It abstains on purpose.** Below the LOW band (0.25) the answer is *Inconclusive* with retake/review guidance — verified live on a real field photo at 19% (screenshot below).
 - **It publishes its own limits.** In-domain held-out top-1 **0.9959** and PlantDoc field-OOD **0.2349** are printed **side by side on every surface** — the UI banner, every PDF, the API, the model card. A model that hides its field performance is a liability; ours names it.
