@@ -230,9 +230,12 @@ working, not a bug.
 
 ## License
 
-Source code license to be confirmed by the founder before public release (default candidate: MIT).
-Datasets are **not** redistributed by this repository; each retains its own license — see
-[docs/datasets.md](docs/datasets.md). Third-party dependency licenses are audited in
+**MIT** — see [LICENSE](LICENSE) (founder decision 2026-09-28, closing the earlier
+"to be confirmed" placeholder recorded in business/08). The MIT license covers the source
+in this repository; the model **weights** are deliberately not in it (AD-008/AD-009 — served
+out-of-band with integrity pinning), and datasets are **not** redistributed — each retains
+its own license, see [docs/datasets.md](docs/datasets.md).
+Third-party dependency licenses are audited in
 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) — including the two a reviewer should see
 first: psycopg is LGPL-3.0 (used unmodified) and react-leaflet is Hippocratic-2.1 (ethical-use,
 not OSI-approved — flagged for legal review).

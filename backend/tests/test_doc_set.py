@@ -3,6 +3,9 @@
 The full numbered doc set (01–16) is itself a deliverable: README promises it, and
 README's screenshots must be files that exist — anything else would be a broken
 claim on the front page. Pins are textual, same as test_deploy_config: files win.
+
+Phase 14 addendum: the license placeholder was closed by founder decision (MIT,
+2026-09-28) — LICENSE must exist and README must not regress to "to be confirmed".
 """
 
 from __future__ import annotations
@@ -76,3 +79,15 @@ def test_docs_do_not_link_missing_docs() -> None:
             base = (REPO_ROOT / rel).parent
             resolved = (base / target).resolve()
             assert resolved.is_file(), f"{rel} links missing doc {target}"
+
+
+def test_license_is_declared_and_readme_matches() -> None:
+    """Founder confirmed MIT 2026-09-28 (business/08 action item closed): the LICENSE
+    file must exist with the standard MIT text + copyright holder, and README must not
+    regress to the old "to be confirmed" placeholder while claiming open source."""
+    lic = _read("LICENSE")
+    assert "MIT License" in lic
+    assert "Copyright (c) 2026 Vishwa Odduri" in lic
+    readme = _read("README.md")
+    assert "to be confirmed by the founder" not in readme
+    assert "](LICENSE)" in readme
