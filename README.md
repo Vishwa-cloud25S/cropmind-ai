@@ -45,12 +45,12 @@
 **Live public demo** (free tier — sleeps when idle; the first action after idle can take ~a minute
 while it wakes, and the app waits and tells you): **https://cropmind-ai-theta.vercel.app**
 (API: https://cropmind-demo-api.onrender.com). **Which weights the demo serves is public and
-derived, never claimed:** `GET /model-info` → `serving.weights_origin` reads `sample`
-(clearly-flagged synthetic plumbing model) until the founder completes the one-time AD-009
-setup (docs/12 §8), then `remote-checkpoint` (the evaluated real model, fetched out-of-band with
-a sha256 pin). UI and PDF banners follow that value automatically — sample → DEMO banner; real
-weights via the demo path → DEMO TRIAL banner carrying both evaluation figures. Weights still
-never travel via git (AD-008). Deploy record + honest incident log:
+derived, never claimed:** `GET /model-info` → `serving.weights_origin`. **Since 2026-09-28
+12:20 UTC it reads `remote-checkpoint`** — the evaluated real model (v0.1.0, never in git —
+AD-008), fetched out-of-band per AD-009 with a sha256 integrity pin (operator runbook docs/12
+§8; flip evidence verbatim in the §7 log). UI and PDF banners follow that value automatically —
+sample → DEMO banner; real weights via the demo path → DEMO TRIAL banner carrying both
+evaluation figures. Deploy record + honest incident log:
 [docs/12-deployment.md](docs/12-deployment.md) §7.
 
 | | |
