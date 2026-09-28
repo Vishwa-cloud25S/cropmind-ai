@@ -71,6 +71,20 @@ Phase-16+ candidates: a leaf-detector pre-gate; conformal rejection tuning.
 The demo script handles this by showing R2 (abstention) as the coercion story and
 naming this residual honestly if asked.
 
+## Demo visibility rules (verified 2026-09-28; presenter must know)
+
+- **Anonymous visitors** see only **anonymously-created** demo rows — after this
+  rehearsal that list holds real 2026-09-28 verdicts (the 91% tomato, the INCONCLUSIVE
+  field photo, the 37% LOW-band non-leaf), all honestly flagged. This is a populated,
+  real history for a first-time viewer with zero seeding tricks.
+- **Account-created demo rows** (the curated 4-leaf showcase + reviewed zone + report
+  `CMA-20260928-C99BE6` seeded 2026-09-28 under `demo-reviewer@cropmind.dev`) are visible
+  **after sign-in** — row ownership wins over the demo flag (`GET /analyses/{id}`
+  anonymously → 404 "analysis not found", deliberately).
+- Both tiers are honest on their labels: `demo` path flag on the analysis, real-weights
+  flag (`weights_demo: false`) on prediction/report, DEMO TRIAL banner on the PDF.
+- Free-tier wake: first action after idle can cold-start ≈30–60 s; warm first, then present.
+
 ## Dedupe behaviour observed (designed, honest)
 
 Re-uploading byte-identical sample files returns HTTP 409:
