@@ -12,15 +12,18 @@
 
 ![CI](https://github.com/Vishwa-cloud25S/cropmind-ai/actions/workflows/ci.yml/badge.svg)
 
-> **Status: Phases 0–10 done — backend core live (16-table schema, uploads pipeline, DB-backed
-> analysis queue + worker, `/images` `/analyses` `/predictions` `/farms` `/fields` `/intervention-zones`
-> `/simulations` `/reports` `/auth` `/admin`), the real frontend (dashboard, analyze wizard, analysis view
-> with Grad-CAM, history, farms/fields CRUD, model information), the field map (Leaflet/OSM boundaries,
-> evidence-space zones, human review, simulation-labelled exports), the spray simulator (marked areas ×
-> declared rate — SIMULATION-labelled, reproducibly stored), PDF field reports (Suspected phrasing
-> verbatim, zone review ledger, unique `CMA-…` report ID) and **accounts & roles** (bcrypt + JWT,
-> server-side logout revocation, FARMER/AGRONOMIST/ADMIN scoping, per-account feedback, admin console,
-> per-IP rate limits with honest 429s); formal M1 gates measured 2026-08-09 (Gate C, operator CPU).**
+> **Status: Phases 0–13 done (documentation set complete, 2026-09-28) — backend core live (16-table
+> schema, uploads pipeline, DB-backed analysis queue + worker, `/images` `/analyses` `/predictions`
+> `/farms` `/fields` `/intervention-zones` `/simulations` `/reports` `/auth` `/admin`), the real frontend
+> (dashboard, analyze wizard, analysis view with Grad-CAM, history, farms/fields CRUD, model
+> information), the field map (Leaflet/OSM boundaries, evidence-space zones, human review,
+> simulation-labelled exports), the spray simulator (marked areas × declared rate — SIMULATION-labelled,
+> reproducibly stored), PDF field reports (Suspected phrasing verbatim, zone review ledger, unique
+> `CMA-…` report ID), **accounts & roles** (bcrypt + JWT, server-side logout revocation,
+> FARMER/AGRONOMIST/ADMIN scoping, per-account feedback, admin console, per-IP rate limits with honest
+> 429s), a free-tier **public demo** (Phase 12 — below, with an honest instability log), and the full
+> numbered **documentation set 01–16** (Phase 13); formal M1 gates measured 2026-08-09 (Gate C,
+> operator CPU).**
 > Baseline run `20260808-180238-0.1.0`: in-domain held-out top-1 **0.9959** ✅ (≥ 0.80) ·
 > CPU latency **110.4 ms p95** ✅ (≤ 2,500 ms) · PlantDoc field OOD top-1 **0.2349** 🔶
 > (SHORTFALL vs 0.50 target — published as-is; both accuracy numbers travel together, always).
@@ -34,6 +37,26 @@
 > [`docs/14-roadmap.md`](docs/14-roadmap.md) for the phase plan and what lands next.
 
 ---
+
+## See it working
+
+**Live public demo** (free tier — sleeps when idle; the first action after idle can take ~a minute
+while it wakes, and the app waits and tells you): **https://cropmind-ai-theta.vercel.app**
+(API: https://cropmind-demo-api.onrender.com). The demo runs the **DEMO sample model only** —
+synthetic patterns, flagged DEMO on every surface (AD-008: the evaluated checkpoint never leaves
+the operator's machine). Deploy record + honest incident log:
+[docs/12-deployment.md](docs/12-deployment.md) §7.
+
+| | |
+|---|---|
+| ![Landing — the pitch with the honest scope on the front door](docs/assets/screens/landing.png) | ![Analysis view — verbatim Suspected phrasing, HIGH band, Grad-CAM with its caveat, DEMO flag](docs/assets/screens/analysis-view.png) |
+| ![Field map — drawn boundary, evidence-space zones, human review states](docs/assets/screens/map-zones.png) | ![PDF field reports — unique CMA report ID, zone review ledger, DEMO banner](docs/assets/screens/reports.png) |
+
+*Captured from the local `docker compose` stack running the DEMO sample model on its own synthetic
+pattern imagery — the demo flags visible in every frame are the honesty system working, and these
+images demonstrate the workflow, never field performance. Measured performance lives in the
+[model card](docs/06-model-card.md): in-domain top-1 **0.9959** and PlantDoc field-OOD **0.2349**
+(published together, always).*
 
 ## What it is
 
@@ -180,15 +203,24 @@ working, not a bug.
 | Doc | Status |
 |---|---|
 | [01 — Product requirements](docs/01-product-requirements.md) | ✅ Phase 0 |
-| [02 — System architecture](docs/02-system-architecture.md) | ✅ Phase 0 |
-| [Datasets & license register](docs/datasets.md) | ✅ Phase 0 |
-| [14 — Development roadmap](docs/14-roadmap.md) | ✅ Phase 0, updated through Phase 10 |
-| [Taxonomy & model config](ml/configs) — what the model does/doesn't support | ✅ Phase 1 (live via `/supported-crops`, `/model-info`) |
-| [05 — ML pipeline](docs/05-ml-pipeline.md) · [06 — Model card](docs/06-model-card.md) · [07 — Data card](docs/07-data-card.md) | ✅ Phases 3–4 (v1; formal gates measured from the operator's eval report) |
-| [04 — API design](docs/04-api-design.md) | ✅ Phase 5 (synced with `backend/app/api/v1/`) |
-| [12 — Deployment](docs/12-deployment.md) (blueprint + demo image land at Phase 12; public demo URL recorded in its §6 log once the operator deploys) | ⏳ Phase 12 |
-| [09 — Security posture](docs/09-security.md) · [10 — Privacy notice](docs/10-privacy.md) · [11 — Testing & coverage](docs/11-testing.md) · [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) | ✅ Phase 11 |
-| User guide, limitations, responsible-AI | Planned (Phase 13 per roadmap) |
+| [02 — System architecture](docs/02-system-architecture.md) | ✅ Phase 0 (ADRs kept current) |
+| [03 — User workflows](docs/03-user-workflows.md) | ✅ Phase 13 (personas labelled as design hypotheses, not interviews) |
+| [04 — API design](docs/04-api-design.md) | ✅ Phase 5 · re-synced with `backend/app/api/v1/` at Phase 13 |
+| [05 — ML pipeline](docs/05-ml-pipeline.md) | ✅ Phase 3 |
+| [06 — Model card](docs/06-model-card.md) | ✅ Phase 4 (both accuracy numbers, always) |
+| [07 — Data card](docs/07-data-card.md) | ✅ Phase 2 |
+| [08 — Eval runbook](docs/08-eval-runbook.md) | ✅ Phase 4 |
+| [09 — Security posture](docs/09-security.md) | ✅ Phase 11 |
+| [10 — Privacy notice](docs/10-privacy.md) | ✅ Phase 11 |
+| [11 — Testing & coverage](docs/11-testing.md) | ✅ Phase 11, counts updated through Phase 13 |
+| [12 — Deployment](docs/12-deployment.md) | ✅ Phase 12 (public demo URLs + live deploy log incl. incidents) |
+| [13 — User guide](docs/13-user-guide.md) | ✅ Phase 13 |
+| [14 — Development roadmap](docs/14-roadmap.md) | ✅ Phase 0, updated through Phase 13 |
+| [15 — Known limitations](docs/15-limitations.md) | ✅ Phase 13 |
+| [16 — Responsible AI](docs/16-responsible-ai.md) | ✅ Phase 13 |
+| [Datasets & license register](docs/datasets.md) | ✅ Phase 0 (pairs with [07 — Data card](docs/07-data-card.md)) |
+| [Taxonomy & model config](ml/configs) — what the model does/doesn't support | ✅ live via `/supported-crops`, `/model-info` |
+| [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) | ✅ Phase 11 (LGPL psycopg + Hippocratic react-leaflet flagged) |
 
 ## License
 

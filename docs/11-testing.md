@@ -1,16 +1,16 @@
 # 11 — Testing & Coverage
 
-**Status:** Phase 11 · **Measured:** 2026-08-11 (counts re-measured at Phase 12 deploy-cleanup `77c0da0`-era) ·
+**Status:** Phase 11 · **Measured:** 2026-08-11 · **counts re-measured at Phase 13 (2026-09-28)** ·
 **Rule:** every number in this document is reproduced by the commands in §3; nothing aspirational
 is presented as current.
 
 ---
 
-## 1. Test inventory (counts as measured on 2026-08-11)
+## 1. Test inventory (counts as measured on 2026-09-28)
 
 | Suite | Framework | Tests | Where it runs |
 |---|---|---|---|
-| Backend API/DB | pytest (TestClient + SQLite) | **118** | CI job `backend`, every push |
+| Backend API/DB | pytest (TestClient + SQLite) | **122** (incl. 4 doc-set pins, `test_doc_set.py`, Phase 13) | CI job `backend`, every push |
 | ML pipeline | pytest + CPU torch | **112** | CI job `ml`, every push |
 | Simulation engine | pytest (pure stdlib) | **10** | CI job `ml`, every push |
 | Frontend components | vitest + Testing Library | **77** (12 files) | CI job `frontend`, every push |

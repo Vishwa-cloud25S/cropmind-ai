@@ -1,7 +1,7 @@
 # 04 — API Design
 
-**Status:** ✅ Phase 5 implemented (2026-08-09) · synced with `backend/app/api/v1/` · live OpenAPI at `/docs`
-**Read with:** [02 — System architecture](02-system-architecture.md) §6–§10, [11 — Reliability plan](11-reliability-plan-testing.md)
+**Status:** ✅ Implemented through Phase 12 · re-synced against `backend/app/api/v1/` at Phase 13 (2026-09-28 — full route/schema/error-table review; only the header, this link, and the §1 Auth row needed correcting, which says the doc has tracked the code honestly) · live OpenAPI at `/docs`
+**Read with:** [02 — System architecture](02-system-architecture.md) §6–§10, [11 — Testing & coverage](11-testing.md)
 
 This document is the REST contract as *implemented*. Where a future phase changes a
 route the table says so — nothing here promises capability that is not wired today.
@@ -14,7 +14,7 @@ route the table says so — nothing here promises capability that is not wired t
 |---|---|
 | Mounting | All routes at the app root (single service); FastAPI serves OpenAPI at `/docs`, spec at `/openapi.json` |
 | Request IDs | `RequestIDMiddleware` stamps every request; returned as `x-request-id` response header, included in structured logs, recorded on write audit rows |
-| Auth | **Phase 10.** The schema is auth-ready (`users`, `requested_by`, `uploader_id` columns exist) but routes are open in Phase 5. Demo-mode sample imagery is the only unauthenticated content by design — everything else gains JWT in Phase 10 |
+| Auth | **Implemented (Phase 10).** bcrypt passwords + HS256 JWT (12 h), server-side logout revocation via a `jti` denylist; FARMER/AGRONOMIST/ADMIN scoping with out-of-scope rows answering 404. The only unauthenticated content by design is the clearly-flagged `demo=true` path (available only when `DEMO_MODE` is on). Full scheme: §3.10 |
 | Errors | Standard FastAPI shape `{"detail": "..."}`. Structured summaries add a dict body (`{"detail": {...}}`) where noted |
 | IDs | UUIDv4 strings (36 chars), server-generated — never client filenames |
 | Timestamps | UTC ISO-8601 |
