@@ -114,6 +114,17 @@ analysis `7c99305c-…` → verdict page → report **`CMA-20260928-8C7864`** (P
 DEMO TRIAL banner + paired figures + ledger + receipt). The screenshots in
 `docs/assets/screens/` are those captures.
 
+**Addendum (production re-verification, same day):** the first live run after the
+frontend deploy surfaced a fourth, deeper issue — the in-browser retake re-encodes
+deterministically, so it deduped to a record whose file the redeploy had just wiped;
+the analysis **failed honestly** (`FileNotFoundError` recorded on the row, visible in
+history — nothing hidden). Two fixes shipped: (a) backend dedupe-reuse now restores
+wiped stored bytes from the hash-identical upload (a content no-op by definition)
+with an explicit `storage_note`, regression-pinned in `test_uploads.py`
+(`test_dedupe_restores_wiped_stored_bytes`, backend 153 green); (b) the retake
+encoder carries a per-attempt quality jitter so identical browser builds no longer
+produce byte-identical retakes. Behaviour above LOW band is unchanged.
+
 ## Dedupe behaviour observed (designed, honest)
 
 Re-uploading byte-identical sample files returns HTTP 409:

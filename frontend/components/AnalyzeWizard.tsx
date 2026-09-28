@@ -37,7 +37,12 @@ async function reencodeJpeg(source: File): Promise<File> {
   if (!ctx) throw new Error("in-browser re-encode unavailable");
   ctx.drawImage(bitmap, 0, 0);
   bitmap.close();
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.93));
+  // Slight per-attempt freshness: identical browsers would otherwise re-encode to the
+  // exact same bytes as another visitor's retake and collide with cross-account dedupe
+  // (409, honestly surfaced). A ms-jittered quality keeps each retake genuinely unique
+  // bytes — the JPEG-equivalent of retaking the photo.
+  const quality = 0.93 - (Date.now() % 7) * 0.003;
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
   if (!blob) throw new Error("in-browser re-encode failed");
   const stem = source.name.replace(/\.jpe?g$/i, "");
   return new File([blob], `${stem}-retake.jpg`, { type: "image/jpeg" });

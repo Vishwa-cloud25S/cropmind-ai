@@ -117,15 +117,14 @@ async def upload_image(
 
     existing = db.query(models.Image).filter(models.Image.sha256 == stored.sha256).first()
     if existing is not None:
-        # Dedupe: content identity wins over file identity; the stray normalized copy is removed.
-        for rel in (stored.path, stored.thumb_path):
-            try:
-                (Path(settings.upload_dir) / rel).unlink(missing_ok=True)
-            except OSError:
-                pass
         try:
             security.visible_or_404(existing.uploader_id, actor, "image")
         except HTTPException as exc:  # identical bytes already live under another account
+            for rel in (stored.path, stored.thumb_path):
+                try:
+                    (Path(settings.upload_dir) / rel).unlink(missing_ok=True)
+                except OSError:
+                    pass
             raise HTTPException(
                 409,
                 {
@@ -134,9 +133,33 @@ async def upload_image(
                     "deduplicated": True,
                 },
             ) from exc
+        # Dedupe: content identity wins over file identity.
+        # Ephemeral-disk honesty (observed live 2026-09-28): a deploy or restart wipes
+        # /data/uploads while rows survive. Reusing a row whose file is gone would fail
+        # the downstream analysis with FileNotFoundError — an honest error but a dead
+        # end for the user. The incoming normalized bytes are sha256-identical to the
+        # row BY DEFINITION, so restoring them (and the thumb) onto the recorded paths
+        # changes no content — it restores exactly the integrity the row claims.
+        root = Path(settings.upload_dir)
+        restored = False
+        for rel_row, rel_new in ((existing.path, stored.path), (existing.thumb_path, stored.thumb_path)):
+            target, fresh = root / rel_row, root / rel_new
+            if not target.is_file() and fresh.is_file():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                fresh.replace(target)
+                restored = True
+        for rel in (stored.path, stored.thumb_path):  # any remaining stray of the fresh write goes
+            try:
+                (root / rel).unlink(missing_ok=True)
+            except OSError:
+                pass
         _audit(db, "IMAGE_UPLOAD_DEDUPLICATED", existing.id, request, actor)
         payload = _image_payload(existing)
         payload["deduplicated"] = True
+        if restored:
+            payload["storage_note"] = (
+                "stored copy had been wiped by a redeploy — restored from these identical bytes (hash-verified)"
+            )
         return {"image": payload}
 
     image = models.Image(

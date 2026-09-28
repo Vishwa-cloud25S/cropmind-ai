@@ -136,6 +136,31 @@ def test_post_same_bytes_deduplicates(client, tmp_path) -> None:
     assert len(list(upload_dir.rglob("*.jpg"))) == 2  # the stray re-encode was removed
 
 
+def test_dedupe_restores_wiped_stored_bytes(client, tmp_path) -> None:
+    """Ephemeral-disk regression (observed live 2026-09-28): a redeploy wipes the upload
+    dir while rows survive. Reusing that row used to send the worker to FileNotFoundError
+    — now the sha-identical incoming bytes restore the recorded paths, and we say so."""
+    first = client.post("/images", files=_upload_file()).json()["image"]
+    upload_dir = Path(tmp_path / "uploads")
+    for f in upload_dir.rglob("*.jpg"):
+        f.unlink()  # simulate the container swap wipe
+
+    second = client.post("/images", files=_upload_file()).json()["image"]
+    assert second["id"] == first["id"]
+    assert second["deduplicated"] is True
+    assert "storage_note" in second and "restored" in second["storage_note"]
+    assert len(list(upload_dir.rglob("*.jpg"))) == 2  # bytes + thumb restored onto the row's paths
+
+    # and the row really serves bytes again (no 404 "stored file missing")
+    dl = client.get(f"/images/{first['id']}/download")
+    assert dl.status_code == 200 and dl.content[:3] == b"\xff\xd8\xff"
+
+    # a THIRD upload with files present: plain dedupe, no restore note
+    third = client.post("/images", files=_upload_file()).json()["image"]
+    assert third["deduplicated"] is True
+    assert "storage_note" not in third
+
+
 def test_post_images_rejects_wrong_content(client) -> None:
     resp = client.post("/images", files={"file": ("leaf.png", _jpeg_bytes(fmt="PNG"), "image/jpeg")})
     assert resp.status_code == 400 and "image/png" in resp.json()["detail"]
