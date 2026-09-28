@@ -14,6 +14,8 @@ import {
 } from "@/lib/api";
 import { getAnalysis } from "@/lib/api";
 import { isSessionAlive } from "@/lib/auth";
+import { DEMO_SAMPLES, sampleAssetPath } from "@/lib/demo-samples";
+import type { DemoSample } from "@/lib/demo-samples";
 import type { AnalysisState, AnalysisStatus, Farm, FieldRecord, ImageRecord } from "@/lib/types";
 import { AnalysisStatusChip } from "@/components/StatusBadge";
 import AuthedImage from "@/components/AuthedImage";
@@ -49,6 +51,10 @@ export default function AnalyzeWizard(props: WizardDeps) {
   const [step, setStep] = useState<Step>("choose");
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  // Phase 15 (FR-20): bundled, individually-labelled sample photos for visitors
+  // who have no photo at hand — provenance + honesty note travel with the pick.
+  const [selectedSampleId, setSelectedSampleId] = useState<string>("");
+  const [sampleBusy, setSampleBusy] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [upload, setUpload] = useState<UploadOk | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisStatus | null>(null);
@@ -126,6 +132,31 @@ export default function AnalyzeWizard(props: WizardDeps) {
     }
     setFile(candidate);
   }
+
+  /** Fetch a bundled sample photo and put it through the EXACT same upload path as a
+   * hand-picked file — no shortcut plumbing, no special-cased results. */
+  async function pickSample(id: string) {
+    setSelectedSampleId(id);
+    const entry = DEMO_SAMPLES.find((sample) => sample.id === id);
+    if (!entry) return;
+    setSampleBusy(true);
+    setFileError(null);
+    try {
+      const response = await fetch(sampleAssetPath(entry));
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      pickFile(new File([blob], entry.file, { type: blob.type || "image/jpeg" }));
+    } catch (err) {
+      setSelectedSampleId("");
+      setFileError(
+        `Could not load the bundled sample (${err instanceof Error ? err.message : "network error"}) — pick your own file instead; the wizard works the same either way.`,
+      );
+    } finally {
+      setSampleBusy(false);
+    }
+  }
+
+  const selectedSample: DemoSample | null = DEMO_SAMPLES.find((sample) => sample.id === selectedSampleId) ?? null;
 
   async function doUpload() {
     if (!file) return;
@@ -220,6 +251,7 @@ export default function AnalyzeWizard(props: WizardDeps) {
     setStep("choose");
     setFile(null);
     setFileError(null);
+    setSelectedSampleId("");
     setServerError(null);
     setWarmingNotice(null);
     transientPollMisses.current = 0;
@@ -254,13 +286,42 @@ export default function AnalyzeWizard(props: WizardDeps) {
             type="file"
             accept={ACCEPT_ATTR}
             className="input file:mr-4 file:rounded-md file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-emerald-800"
-            onChange={(event) => pickFile(event.target.files?.[0] ?? null)}
+            onChange={(event) => {
+              setSelectedSampleId("");
+              pickFile(event.target.files?.[0] ?? null);
+            }}
             disabled={busy || running}
           />
           {fileError ? <p className="alert-error mt-2" role="alert">{fileError}</p> : null}
           {file ? (
             <p className="mt-2 text-xs text-stone-500">
               Selected: {file.name} · {(file.size / 1024).toFixed(0)} KB
+            </p>
+          ) : null}
+        </div>
+        <div className="mt-3">
+          <label htmlFor="sample-select" className="field-label">
+            No photo at hand? Use a bundled sample (labelled with provenance)
+          </label>
+          <select
+            id="sample-select"
+            className="input"
+            value={selectedSampleId}
+            onChange={(event) => void pickSample(event.target.value)}
+            disabled={busy || running || sampleBusy}
+            data-testid="sample-select"
+          >
+            <option value="">choose a sample photo…</option>
+            {DEMO_SAMPLES.map((sample) => (
+              <option key={sample.id} value={sample.id}>
+                {sample.label}
+              </option>
+            ))}
+          </select>
+          {sampleBusy ? <p className="mt-1 text-xs text-stone-500">loading the sample photo…</p> : null}
+          {selectedSample ? (
+            <p className="mt-1 text-xs leading-5 text-stone-500" data-testid="sample-provenance">
+              {selectedSample.provenance}. {selectedSample.honestyNote}
             </p>
           ) : null}
         </div>
@@ -296,8 +357,8 @@ export default function AnalyzeWizard(props: WizardDeps) {
         ) : null}
         {!signedIn ? (
           <p className="alert-info mt-4" role="note">
-            No account signed in — this run uses the <strong>flagged demo path</strong> (demo sample model unless a
-            trained checkpoint is configured, results labelled demo).{" "}
+            No account signed in — this run uses the <strong>flagged demo path</strong> (results labelled demo;
+            the live model identity is always shown on the landing page&apos;s Model truth panel).{" "}
             <Link href="/login?next=/analyze" className="link-cta">
               Sign in
             </Link>{" "}

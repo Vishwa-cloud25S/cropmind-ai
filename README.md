@@ -12,7 +12,7 @@
 
 ![CI](https://github.com/Vishwa-cloud25S/cropmind-ai/actions/workflows/ci.yml/badge.svg)
 
-> **Status: Phases 0–14 done (business package + public real-model serving mechanism AD-009, 2026-09-28) — backend core live (16-table
+> **Status: Phases 0–15 done (business package + public real-model serving mechanism AD-009 + demo kit & acceptance sweep, 2026-09-28) — backend core live (16-table
 > schema, uploads pipeline, DB-backed analysis queue + worker, `/images` `/analyses` `/predictions`
 > `/farms` `/fields` `/intervention-zones` `/simulations` `/reports` `/auth` `/admin`), the real frontend
 > (dashboard, analyze wizard, analysis view with Grad-CAM, history, farms/fields CRUD, model
@@ -91,6 +91,7 @@ cropmind-ai/
 ├── data/             # raw / processed / annotations / splits  (never committed)
 ├── simulation/       # drone + precision-spray simulators (Phase 8)
 ├── docs/             # product, architecture, datasets, model/data cards, roadmap
+├── demo/             # demo kit: samples (provenance-pinned), 3-min script, walkthrough evidence, pitch outline, acceptance sweep (Phase 15)
 ├── business/         # business plan, market, pricing, financials, risks, endorsement evidence map (Phase 14)
 ├── reports/          # generated model-evaluation reports
 └── .github/          # CI workflows (Phase 1)

@@ -189,6 +189,23 @@ train image.
 7. **Mirror ambiguity:** several "PlantVillage" mirrors exist with different class-folder
    conventions; `ml/data/classmap.py` normalizes them and is unit-tested against both.
 
+## Redistribution narrowing (2026-09-28, Phase 15)
+
+Four individual images are redistributed inside this repository as labelled **demo samples**
+(`frontend/public/demo-samples/`, mirrored in `demo/media/`), provenance-pinned in
+`frontend/lib/demo-samples.ts` and byte-pinned by tests:
+
+- 2× PlantVillage (CC0 1.0 — public domain dedication, no attribution legally required;
+  attribution given anyway)
+- 2× PlantDoc test-set field photos (**CC BY 4.0** — attribution shipped next to every use:
+  `frontend/lib/demo-samples.ts`, `demo/README.md`, and the in-app sample picker)
+
+Scope rule going forward: **at most 5 demo photos per dataset may be redistributed in-repo**,
+each individually labelled with source + license + sha256 prefix. Bulk redistribution stays
+prohibited; training/eval sets are fetched by the pipeline from canonical sources with hashes,
+never committed. IP102 remains **deferred** (non-commercial terms incompatible with a
+commercial product demo).
+
 ## Citations
 
 - Arun Pandian, J., & Geetharamani, G. (2019). *Data for: Identification of Plant Leaf Diseases

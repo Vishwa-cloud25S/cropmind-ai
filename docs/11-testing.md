@@ -10,10 +10,10 @@ is presented as current.
 
 | Suite | Framework | Tests | Where it runs |
 |---|---|---|---|
-| Backend API/DB | pytest (TestClient + SQLite) | **146** (incl. doc-set pins `test_doc_set.py`, demo-bake pin `test_demo_bake.py`, AD-009 delivery pins `test_model_delivery.py`, business-package pins `test_business_docs.py` 2026-09-28) | CI job `backend`, every push |
+| Backend API/DB | pytest (TestClient + SQLite) | **152** (incl. doc-set pins `test_doc_set.py`, demo-bake pin `test_demo_bake.py`, AD-009 delivery pins `test_model_delivery.py`, business-package pins `test_business_docs.py`, Phase-15 demo coherence pins `test_phase15_demo_live.py` 2026-09-28) + **3 `live`-marked** production-gate tests (deselected by default/CI; run in rehearsals) | CI job `backend`, every push |
 | ML pipeline | pytest + CPU torch | **113** (incl. the sample-model eval-mode contract test, 2026-09-28) | CI job `ml`, every push |
 | Simulation engine | pytest (pure stdlib) | **10** | CI job `ml`, every push |
-| Frontend components | vitest + Testing Library | **77** (12 files) | CI job `frontend`, every push |
+| Frontend components | vitest + Testing Library | **88** (15 files; incl. Phase-15 demo-sample picker tests) | CI job `frontend`, every push |
 | Static gates | ruff · eslint · tsc --noEmit · next build | — | CI jobs, every push |
 | Integration | docker compose config + full image build | — | CI job `docker`, every push |
 

@@ -116,17 +116,19 @@ If any gate is missed, the miss is documented — M1 exists to measure, not to l
 
 ## 7. Full MVP acceptance checklist
 
-Tracked from the master spec (§75). Current state: **all items pending** until the relevant phase lands.
+Tracked from the master spec (§75). **All items green as of 2026-09-28 (Phase 15)** — the
+evidence-mapped audit lives in `demo/acceptance-sweep.md`; two items carry an honest
+recorded caveat there (detector head not trained; no formal WCAG audit yet).
 
-- [ ] App accessible; Demo mode without account
-- [ ] Image upload → processed → prediction + confidence + model version displayed
-- [ ] Explainability + severity displayed
-- [ ] Farm/field CRUD; analysis linked to field
-- [ ] Map: field, regions, zones; zones approvable/rejectable; GeoJSON export
-- [ ] Simulation run; PDF report; history; feedback; DB persistence
-- [ ] Auth + OpenAPI docs; tests pass in CI
-- [ ] README, deployment docs, model card, data card, responsible-AI doc
-- [ ] Business plan, pitch deck outline, financial model, endorsement evidence framework (placeholders, no fabricated evidence)
+- [x] App accessible; Demo mode without account — live demo; FR-20 bundle of 4 labelled samples (`demo/`, Phase 15)
+- [x] Image upload → processed → prediction + confidence + model version displayed — live verdicts, e.g. `Suspected Tomato - Early blight - 91% confidence`, model v0.1.0
+- [x] Explainability + severity displayed — Grad-CAM honest caveat + "Estimated visual severity" label (UI + PDF)
+- [x] Farm/field CRUD; analysis linked to field — rehearsal field Tomato Block A (`1a6c103a…`)
+- [x] Map: field, regions, zones; zones approvable/rejectable; GeoJSON export — flagship zone `f88528c5…` APPROVED, ledger on PDF
+- [x] Simulation run; PDF report; history; feedback; DB persistence — live reports `CMA-20260928-2CDDF0` / `CMA-20260928-9A9684`
+- [x] Auth + OpenAPI docs; tests pass in CI — CI 4/4 green; backend 152 + 3 live-gate tests green against production
+- [x] README, deployment docs, model card, data card, responsible-AI doc — docs/01–16 + datasets.md + LICENSE
+- [x] Business plan, pitch deck outline, financial model, endorsement evidence framework (placeholders, no fabricated evidence) — `business/` 01–10
 
 ## 8. Safety & honesty constraints (binding on every phase)
 
