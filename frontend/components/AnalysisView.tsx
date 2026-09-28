@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import { ApiError, errorMessage, getAnalysis, getPredictionForAnalysis, gradcamUrl, imageDownloadUrl } from "@/lib/api";
+import { isSessionAlive } from "@/lib/auth";
 import type { AnalysisStatus, Prediction } from "@/lib/types";
 import PredictionCard from "@/components/PredictionCard";
 import AuthedImage from "@/components/AuthedImage";
@@ -32,7 +33,12 @@ export default function AnalysisView({ analysisId, ...props }: AnalysisViewDeps 
   const [error, setError] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
   const [gradcamVisible, setGradcamVisible] = useState(true);
+  const [signedIn, setSignedIn] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    setSignedIn(isSessionAlive()); // client-only session probe (feedback affordance gate)
+  }, []);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) clearInterval(pollRef.current);
@@ -161,7 +167,26 @@ export default function AnalysisView({ analysisId, ...props }: AnalysisViewDeps 
 
       {status.status === "COMPLETED" ? <ReportPanel analysisId={analysisId} analysisStatus={status.status} /> : null}
 
-      {status.status === "COMPLETED" && prediction ? <FeedbackPanel analysisId={analysisId} /> : null}
+      {/* Feedback requires an account (FR-18 reviewer trail). Listing it anonymously
+          401s, and the shared wrapper used to redirect that to /login — which silently
+          killed the whole no-account verdict page (FR-20). So, same rule as the farm
+          picker: session-gated affordance, honest sign-in nudge instead. */}
+      {status.status === "COMPLETED" && prediction ? (
+        signedIn ? (
+          <FeedbackPanel analysisId={analysisId} />
+        ) : (
+          <section className="card" aria-label="Feedback" data-testid="feedback-signin-nudge">
+            <h2 className="text-lg font-bold text-stone-900">Feedback</h2>
+            <p className="mt-1 text-sm text-stone-600">
+              Feedback on a verdict is part of the reviewer trail and needs an account.{" "}
+              <Link href={`/login?next=/analyses/${analysisId}`} className="link-cta">
+                Sign in to leave feedback
+              </Link>{" "}
+              — the verdict above, its report and its imagery stay fully visible without one.
+            </p>
+          </section>
+        )
+      ) : null}
 
       {prediction ? (
         <section className="card" aria-label="Imagery">

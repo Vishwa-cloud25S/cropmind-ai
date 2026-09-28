@@ -170,9 +170,11 @@ export function getAnalysis(analysisId: string): Promise<AnalysisStatus> {
 }
 
 export function listAnalyses(
-  opts: { limit?: number; offset?: number; status?: string } = {},
+  opts: { limit?: number; offset?: number; status?: string; demo?: boolean } = {},
 ): Promise<AnalysisList> {
-  return request<AnalysisList>(`/analyses${qs({ limit: opts.limit, offset: opts.offset, status: opts.status })}`);
+  return request<AnalysisList>(
+    `/analyses${qs({ limit: opts.limit, offset: opts.offset, status: opts.status, demo: opts.demo || undefined })}`,
+  );
 }
 
 export function getPredictionForAnalysis(analysisId: string): Promise<Prediction> {

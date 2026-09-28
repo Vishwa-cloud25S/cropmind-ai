@@ -4,7 +4,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AnalyzeWizard from "@/components/AnalyzeWizard";
 import { ApiError } from "@/lib/api";
+import { saveSession } from "@/lib/auth";
 import type { AnalysisCreateResponse, AnalysisStatus, ImageUploadResponse } from "@/lib/types";
+
+/** Client-side live session (unsigned-structure JWT — only the client clock is exercised). */
+function saveLiveSession() {
+  const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+  const payload = btoa(
+    JSON.stringify({ sub: "u1", role: "FARMER", jti: "j1", exp: Math.floor(Date.now() / 1000) + 3600 }),
+  );
+  saveSession({
+    access_token: `${header}.${payload}.testsig`,
+    expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+    user: { id: "u1", email: "farmer@example.test", role: "FARMER", created_at: null },
+  });
+}
 
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
@@ -72,6 +86,7 @@ async function pickPhoto(user: ReturnType<typeof userEvent.setup>, file: File) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.localStorage.clear(); // tests are anonymous unless they save a session explicitly
 });
 
 describe("AnalyzeWizard", () => {
@@ -167,6 +182,7 @@ describe("AnalyzeWizard", () => {
   });
 
   it("shows farm/field pickers only when farms exist (and fields follow the chosen farm)", async () => {
+    saveLiveSession(); // farm pickers are a signed-in affordance: farms are account-scoped
     const deps = makeDeps({
       listFarmsFn: vi.fn().mockResolvedValue({
         count: 1,
@@ -192,6 +208,19 @@ describe("AnalyzeWizard", () => {
 
     await pickPhoto(user, new File(["jpeg-bytes"], "leaf.jpg", { type: "image/jpeg" }));
     await user.click(screen.getByRole("button", { name: "Upload" }));
-    expect(deps.uploadImageFn).toHaveBeenCalledWith(expect.anything(), { fieldId: "field-9", demo: true });
+    // signed-in uploader ⇒ not the flagged demo path
+    expect(deps.uploadImageFn).toHaveBeenCalledWith(expect.anything(), { fieldId: "field-9", demo: false });
+  });
+
+  it("anonymous demo mount: no account ⇒ farms picker skipped (no 401 redirect), notice stays honest", async () => {
+    const deps = makeDeps();
+    render(<AnalyzeWizard {...deps} />);
+
+    await screen.findByTestId("analyze-wizard");
+    // the FR-20 gate: without a session the wizard must NOT hit account-scoped /farms
+    // (that 401 used to bounce anonymous demo visitors to /login and kill the flow)
+    expect(deps.listFarmsFn).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Farm (optional)")).not.toBeInTheDocument();
+    expect(screen.getByText(/flagged demo path/)).toBeInTheDocument();
   });
 });

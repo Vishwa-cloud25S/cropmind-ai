@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { errorMessage, listAnalyses, listFarms } from "@/lib/api";
+import { isSessionAlive } from "@/lib/auth";
 import HistoryTable from "@/components/HistoryTable";
 import ModelTruthPanel from "@/components/ModelTruthPanel";
 
@@ -27,17 +28,23 @@ export default function DashboardView(props: DashboardDeps) {
 
   useEffect(() => {
     let cancelled = false;
+    // FR-20 honesty: no session ⇒ the anonymous visitor is on the flagged demo path.
+    // Farms are account-scoped (401 by design) — count only what the demo path can see
+    // and fetch the shared demo history instead of redirecting to /login.
+    const signedIn = isSessionAlive();
     (async () => {
-      try {
-        const farms = await listFarmsFn();
-        if (cancelled) return;
-        setFarmCount(farms.count);
-        setFieldCount(farms.farms.reduce((total, farm) => total + farm.field_count, 0));
-      } catch (err) {
-        if (!cancelled) setError(errorMessage(err));
+      if (signedIn) {
+        try {
+          const farms = await listFarmsFn();
+          if (cancelled) return;
+          setFarmCount(farms.count);
+          setFieldCount(farms.farms.reduce((total, farm) => total + farm.field_count, 0));
+        } catch (err) {
+          if (!cancelled) setError(errorMessage(err));
+        }
       }
       try {
-        const analyses = await listAnalysesFn({ limit: 100 });
+        const analyses = await listAnalysesFn({ limit: 100, demo: signedIn ? undefined : true });
         if (!cancelled) setAnalysisCount(analyses.count);
       } catch (err) {
         if (!cancelled) setError((prev) => prev ?? errorMessage(err));

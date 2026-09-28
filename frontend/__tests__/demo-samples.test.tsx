@@ -9,6 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AnalyzeWizard from "@/components/AnalyzeWizard";
+import { ApiError } from "@/lib/api";
 import { DEMO_SAMPLES, sampleAssetPath } from "@/lib/demo-samples";
 
 vi.mock("next/link", () => ({
@@ -72,5 +73,40 @@ describe("AnalyzeWizard bundled samples", () => {
     await userEvent.selectOptions(screen.getByTestId("sample-select"), DEMO_SAMPLES[1].id);
     await screen.findByText(/Could not load the bundled sample \(HTTP 500\)/);
     expect(screen.getByText(/pick your own file instead/)).toBeInTheDocument();
+  });
+
+  it("dedupe-409 on a bundled sample triggers exactly one honest in-browser retake", async () => {
+    const blob = new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 9, 9])], { type: "image/jpeg" });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, blob: async () => blob }));
+    // jsdom has no canvas — stub the minimal re-encode surface the wizard uses
+    vi.stubGlobal("createImageBitmap", vi.fn().mockResolvedValue({ width: 8, height: 8, close: () => {} }));
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({ drawImage: () => {} } as never);
+    vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation(function (cb: BlobCallback) {
+      cb(new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], { type: "image/jpeg" }));
+    });
+
+    const uploadImageFn = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiError(409, { detail: { detail: "these exact bytes are already stored", deduplicated: true } }))
+      .mockResolvedValue({
+        image: {
+          id: "img-retake-1", field_id: null, sha256: "cd".repeat(32), width: 8, height: 8,
+          byte_size: 4, captured_at: null, exif: null, source_type: "upload",
+          created_at: "2026-09-28T10:00:00+00:00", deduplicated: false,
+        },
+      });
+    render(<AnalyzeWizard uploadImageFn={uploadImageFn} />);
+
+    await userEvent.selectOptions(screen.getByTestId("sample-select"), DEMO_SAMPLES[0].id);
+    await screen.findByText(new RegExp(`Selected: ${DEMO_SAMPLES[0].file}`));
+    await userEvent.click(screen.getByRole("button", { name: "Upload" }));
+
+    await screen.findByText("Stored copy");
+    expect(uploadImageFn).toHaveBeenCalledTimes(2);
+    const retakeFile = uploadImageFn.mock.calls[1][0] as File;
+    expect(retakeFile.name).toBe(`${DEMO_SAMPLES[0].file.replace(/\.jpe?g$/i, "")}-retake.jpg`);
+    const notice = screen.getByTestId("retake-notice");
+    expect(notice).toHaveTextContent(/content-dedupe doing its job/);
+    expect(notice).toHaveTextContent(/never re-encoded/i);
   });
 });

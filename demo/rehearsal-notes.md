@@ -85,6 +85,35 @@ naming this residual honestly if asked.
   flag (`weights_demo: false`) on prediction/report, DEMO TRIAL banner on the PDF.
 - Free-tier wake: first action after idle can cold-start ≈30–60 s; warm first, then present.
 
+## R4 — Browser-driven rehearsal caught three FR-20 bugs (now fixed + regression-pinned)
+
+While capturing real README screenshots through the anonymous demo flow (headless
+Chromium against the live API), the rehearsal failed three times in ways unit tests
+had not pinned:
+
+1. **Anonymous 401-redirect on mount** — `AnalyzeWizard` / `DashboardView` /
+   `HistoryTable` fetched the account-scoped `/farms` list unconditionally; the
+   shared wrapper routes any 401 to `/login`, so "Try the Demo" and /analyze were
+   unreachable without an account. Fix: session-gated reads + `demo=true` anonymous
+   lists.
+2. **Verdict page self-destructed anonymously** — `FeedbackPanel`'s mount-time
+   `GET /analyses/{id}/feedback` is account-only by design (401); the same wrapper
+   redirected, so a demo visitor completing an analysis could never see their own
+   verdict. Every other endpoint on that page was verified demo-anonymous (200):
+   analysis, prediction, imagery, Grad-CAM, zones, report. Fix: feedback is a
+   signed-in affordance (like the farm picker); anonymous sees an honest sign-in
+   nudge and loses nothing else.
+3. **Bundled samples dead-ended after first-ever use** — the static sample assets
+   are byte-identical for every visitor, so global content-dedupe (409) refused
+   every subsequent pick. Fix: bundled picks only (never user photos) retry once
+   with a fresh in-browser re-encoded retake, disclosed on screen
+   ("…never re-encoded").
+
+Each fix is pinned by vitest (96/96) and re-verified end-to-end anonymously:
+analysis `7c99305c-…` → verdict page → report **`CMA-20260928-8C7864`** (PDF checked,
+DEMO TRIAL banner + paired figures + ledger + receipt). The screenshots in
+`docs/assets/screens/` are those captures.
+
 ## Dedupe behaviour observed (designed, honest)
 
 Re-uploading byte-identical sample files returns HTTP 409:

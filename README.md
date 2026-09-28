@@ -1,84 +1,149 @@
-# CropMind AI
+<div align="center">
+  <img src="docs/assets/logo.svg" alt="CropMind AI" width="72" />
+  <h1>CropMind AI</h1>
+  <p><strong>The crop-health AI that tells you when it doesn't know.</strong></p>
+  <p>Open-source precision agriculture: suspected-condition screening with calibrated
+  confidence bands, explainability, human-reviewable intervention zones, and
+  audit-ready PDF evidence — <em>decision support, never a dressed-up guess.</em></p>
 
-<p>
-  <img src="docs/assets/logo.svg" alt="CropMind AI logo" width="56" height="56" align="left" />
-  <strong>See the problem before you spray the field.</strong><br/>
-  CropMind AI converts crop-health imagery into explainable, geospatially localized
-  intervention zones for precision crop protection — helping farmers and agronomists
-  review suspected issues and target treatment areas instead of blanket-spraying whole fields.
-</p>
-
-<br clear="left"/>
-
-![CI](https://github.com/Vishwa-cloud25S/cropmind-ai/actions/workflows/ci.yml/badge.svg)
-
-> **Status: Phases 0–15 done (business package + public real-model serving mechanism AD-009 + demo kit & acceptance sweep, 2026-09-28) — backend core live (16-table
-> schema, uploads pipeline, DB-backed analysis queue + worker, `/images` `/analyses` `/predictions`
-> `/farms` `/fields` `/intervention-zones` `/simulations` `/reports` `/auth` `/admin`), the real frontend
-> (dashboard, analyze wizard, analysis view with Grad-CAM, history, farms/fields CRUD, model
-> information), the field map (Leaflet/OSM boundaries, evidence-space zones, human review,
-> simulation-labelled exports), the spray simulator (marked areas × declared rate — SIMULATION-labelled,
-> reproducibly stored), PDF field reports (Suspected phrasing verbatim, zone review ledger, unique
-> `CMA-…` report ID), **accounts & roles** (bcrypt + JWT, server-side logout revocation,
-> FARMER/AGRONOMIST/ADMIN scoping, per-account feedback, admin console, per-IP rate limits with honest
-> 429s), a free-tier **public demo** (Phase 12 — below, with an honest instability log), the full
-> numbered **documentation set 01–16** (Phase 13), and the **business package** `business/` — plan,
-> sourced market + competitor research, UK strategy, pricing-for-validation, 3-year scenarios,
-> data/IP strategy, risk register and endorsement evidence map (Phase 14, everything indicative);
-> formal M1 gates measured 2026-08-09 (Gate C, operator CPU).**
-> Baseline run `20260808-180238-0.1.0`: in-domain held-out top-1 **0.9959** ✅ (≥ 0.80) ·
-> CPU latency **110.4 ms p95** ✅ (≤ 2,500 ms) · PlantDoc field OOD top-1 **0.2349** 🔶
-> (SHORTFALL vs 0.50 target — published as-is; both accuracy numbers travel together, always).
-> Details: docs/06-model-card.md §4.2.
-> The stack boots today: `docker compose up --build` brings up Postgres → API (migrates) →
-> worker (migrates + seeds dataset_sources + polls the queue) → frontend. With
-> `MODEL_CHECKPOINT` empty the worker runs the **clearly-flagged DEMO sample model**
-> (synthetic patterns — plumbing evidence, not a crop claim); point it at
-> `runs/20260808-180238-0.1.0/checkpoint.pt` for the evaluated baseline.
-> CI runs lint + typecheck + tests + docker builds. See
-> [`docs/14-roadmap.md`](docs/14-roadmap.md) for the phase plan and what lands next.
+  <p>
+    <a href="https://github.com/Vishwa-cloud25S/cropmind-ai/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Vishwa-cloud25S/cropmind-ai/actions/workflows/ci.yml/badge.svg" /></a>
+    <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green.svg" /></a>
+    <a href="https://cropmind-ai-theta.vercel.app"><img alt="Live demo" src="https://img.shields.io/badge/demo-live-emerald" /></a>
+    <img alt="Tests" src="https://img.shields.io/badge/tests-152%20backend%20%C2%B7%2096%20frontend%20%C2%B7%20113%20ml%20%C2%B7%2010%20sim-brightgreen" />
+  </p>
+</div>
 
 ---
 
-## See it working
+> **Most agtech demos can't say "I don't know." This one refuses to guess.**
+> Point it at a real field photo and it will *abstain* — `Inconclusive (… below the LOW
+> band) - retake photo or request agronomist review` — rather than invent a confident
+> disease label. That refusal is the product.
 
-**Live public demo** (free tier — sleeps when idle; the first action after idle can take ~a minute
-while it wakes, and the app waits and tells you): **https://cropmind-ai-theta.vercel.app**
-(API: https://cropmind-demo-api.onrender.com). **Which weights the demo serves is public and
-derived, never claimed:** `GET /model-info` → `serving.weights_origin`. **Since 2026-09-28
-12:20 UTC it reads `remote-checkpoint`** — the evaluated real model (v0.1.0, never in git —
-AD-008), fetched out-of-band per AD-009 with a sha256 integrity pin (operator runbook docs/12
-§8; flip evidence verbatim in the §7 log). UI and PDF banners follow that value automatically —
-sample → DEMO banner; real weights via the demo path → DEMO TRIAL banner carrying both
-evaluation figures. Deploy record + honest incident log:
-[docs/12-deployment.md](docs/12-deployment.md) §7.
+## ⚡ Hook highlights (all receipts, no slogans)
+
+- **It abstains on purpose.** Below the LOW band (0.25) the answer is *Inconclusive* with retake/review guidance — verified live on a real field photo at 19% (screenshot below).
+- **It publishes its own limits.** In-domain held-out top-1 **0.9959** and PlantDoc field-OOD **0.2349** are printed **side by side on every surface** — the UI banner, every PDF, the API, the model card. A model that hides its field performance is a liability; ours names it.
+- **Real model in production.** The live demo serves the evaluated cropmind-leaf-classifier **v0.1.0**, delivered out-of-band with **sha256 integrity pinning** (AD-009) — never committed to git. `GET /model-info` shows exactly which weights answer you, right now.
+- **Files win over console.** Every run ends in a uniquely-IDed PDF field report (e.g. **CMA-20260928-9A9684**) with the verdict verbatim, both evaluation figures, the zone review ledger, and a SHA-256 integrity receipt for the source image.
+- **Honesty by design, everywhere displayed.** Verbatim `Suspected … — N% confidence` phrasing; demo/sample/real weights are independently flagged on API, UI and PDF; global content-dedupe refuses byte-identical re-uploads *and explains why*; simulations are labelled SIMULATION.
+- **No account needed.** The full money-loop — pick a bundled, provenance-labelled sample → verdict → zones → PDF — runs anonymously on the flagged demo path. We demoed it to ourselves, caught **three** flow-killing bugs, fixed them, and pinned regressions with 8 new tests.
+
+## 🚀 Try it in 3 minutes (live public demo)
+
+**[https://cropmind-ai-theta.vercel.app](https://cropmind-ai-theta.vercel.app)** · API: `https://cropmind-demo-api.onrender.com`
+*(free tier — sleeps when idle; the first action after a nap can take ~a minute while it wakes, and the UI says so)*
+
+1. **Dashboard** — watch the *Model truth* panel derive its claim live from `/model-info` (`serving: real model · remote (AD-009)`), with both accuracy figures next to it.
+2. **Analyze** — no photo at hand? Pick a **bundled sample** (each labelled with source, license, and *what it should teach you*).
+3. Read the verdict: **verbatim** phrasing, confidence band, uncertainty, Grad-CAM *with its caveat*, model identity. Feed it the field sample and watch it **abstain**.
+4. **Map → zones → PDF** — generate simulation zones, review one, download the `CMA-…` field report: verdict verbatim + paired figures + review ledger + SHA-256 receipt.
+5. Try to break it: re-upload the same file (dedupe 409, explained) or a screenshot of a spreadsheet — and read [*what honestly happens*](demo/rehearsal-notes.md#r3--adversarial-text-image-financial-soup).
+
+## 📊 Results — measured, paired, reproducible
+
+| Claim | Value | Where it's enforced |
+|---|---|---|
+| In-domain held-out top-1 | **0.9959** | Model card + API `/model-info` + UI banner + every PDF — always quoted **with** ↓ |
+| PlantDoc field-OOD top-1 | **0.2349** (shortfall, published as-is) | same block; the pair travels together by rule |
+| CPU latency (eval rig) | **p95 110.4 ms** | `reports/model_evaluation/` (generated, never hand-edited) |
+| Confidence bands | HIGH ≥ 0.60 · MEDIUM ≥ 0.45 · LOW ≥ 0.25 · below → abstain | config-pinned (`ml/configs/model.yaml`), test-pinned |
+| Live verdicts (2026-09-28, real model) | Tomato early blight **91% HIGH** · Potato late blight **77% HIGH** · field photo → **INCONCLUSIVE 19%** | [demo/walkthrough-checklist.md](demo/walkthrough-checklist.md) |
+| PDF field reports (receipts) | `CMA-20260928-9A9684` · `CMA-20260928-C99BE6` · `CMA-20260928-8C7864` | [demo/rehearsal-notes.md](demo/rehearsal-notes.md) |
+| Tests | backend **152** (+3 live-gate vs production) · frontend **96** · ml **113** · sim **10** | CI: backend · frontend · ml · docker — 4/4 green |
+| Docs | numbered set 01–16 + datasets register + demo kit + business package | integrity-pinned by tests |
+
+## 🖼 See it working
+
+*Captured 2026-09-28 from the production build against the live deployment serving the real model v0.1.0. The demo flags visible in every frame are the honesty system working — these images demonstrate the workflow, and the measured numbers above live with their context in the [model card](docs/06-model-card.md).*
 
 | | |
 |---|---|
-| ![Landing — the pitch with the honest scope on the front door](docs/assets/screens/landing.png) | ![Analysis view — verbatim Suspected phrasing, HIGH band, Grad-CAM with its caveat, DEMO flag](docs/assets/screens/analysis-view.png) |
-| ![Field map — drawn boundary, evidence-space zones, human review states](docs/assets/screens/map-zones.png) | ![PDF field reports — unique CMA report ID, zone review ledger, DEMO banner](docs/assets/screens/reports.png) |
+| ![Landing — honest scope on the front door](docs/assets/screens/landing.png) | ![Anonymous dashboard — Model truth panel: serving real model · remote (AD-009), paired figures](docs/assets/screens/dashboard.png) |
+| ![Analyze wizard — bundled samples labelled with provenance and what each photo should teach you; flagged demo path notice](docs/assets/screens/analyze-wizard.png) | ![Verdict — verbatim Suspected phrasing, HIGH band, demo badge, full model identity](docs/assets/screens/analysis-view.png) |
+| ![The abstention — field photo: Inconclusive at 19%, below LOW band, with the explainer](docs/assets/screens/abstention.png) | ![PDF field report — DEMO TRIAL banner with both figures, CMA report ID, zone review ledger, SHA-256 receipt](docs/assets/screens/report-pdf.png) |
+| ![Field map — drawn boundary, intervention zones with human-review states](docs/assets/screens/map-zones.png) | ![Reports — every PDF with a unique CMA ID; stored-missing states admitted, not hidden](docs/assets/screens/reports.png) |
 
-*Captured from the local `docker compose` stack running the DEMO sample model on its own synthetic
-pattern imagery — the demo flags visible in every frame are the honesty system working, and these
-images demonstrate the workflow, never field performance. Measured performance lives in the
-[model card](docs/06-model-card.md): in-domain top-1 **0.9959** and PlantDoc field-OOD **0.2349**
-(published together, always).*
+More: [model truth close-up](docs/assets/screens/model-truth.png) · [live model information page](docs/assets/screens/model-information.png) · [analysis history](docs/assets/screens/analysis-history.png) · [spray-plan simulation](docs/assets/screens/simulate.png)
 
-## What it is
+## 🏗 Architecture
 
-A full-stack precision-agriculture MVP:
+```mermaid
+flowchart LR
+    subgraph Client["Browser (Next.js + TypeScript + Leaflet)"]
+        UI[Wizard / Dashboard / Map / Reports]
+        TP[Model truth panel<br/>labels derived live from /model-info]
+    end
+    subgraph API["FastAPI (backend/)"]
+        R[REST: images · analyses · zones · reports · feedback]
+        AUTH[JWT roles: FARMER · AGRONOMIST · ADMIN<br/>+ flagged anonymous demo path]
+        DEL[Model delivery AD-009:<br/>resolve → sha256 verify → atomic swap]
+    end
+    subgraph Worker["Analysis worker"]
+        Q[Job runner<br/>PENDING→PROCESSING→COMPLETED/FAILED]
+        ML[ml/inference: MobileNetV3-L<br/>bands + abstention + uncertainty + Grad-CAM]
+    end
+    subgraph Stores["Storage"]
+        PG[(Postgres<br/>16 tables + Alembic)]
+        FS[(Ephemeral media store<br/>missing files admitted, never hidden)]
+    end
+    UI --> R
+    TP --> R
+    R --> AUTH
+    R --> PG
+    R -->|enqueue| Q
+    Q --> ML
+    ML --> FS
+    DEL -->|real checkpoint, integrity-pinned| ML
+    R -->|PDF field reports| FS
+```
 
-smartphone/drone image → AI detection → confidence & uncertainty → localization →
-severity estimate → explainability → field/GPS mapping → precision intervention zones →
-estimated input-savings simulation → human review → PDF field report.
+| Layer | What it does | Honesty hooks |
+|---|---|---|
+| `frontend/` (Next.js, TS, Tailwind, Leaflet) | wizard, dashboard, field map + zones, reviews, reports | every model claim derived from `/model-info`; demo/sample/real flags on screen |
+| `backend/` (FastAPI, SQLAlchemy 2, Alembic, ReportLab) | REST API, auth/roles, audit log, dedupe, PDF generation, model delivery (AD-009) | verbatim phrasing; path-vs-weights demo flags; sha256 receipts; refuse-to-serve on integrity mismatch |
+| `ml/` (MobileNetV3-L, torch CPU) | data pipeline, training, evaluation, inference, Grad-CAM | bands from config, abstain-below-LOW, OOD published, per-prediction identity |
+| `simulation/` (pure stdlib) | spray-plan + route/area/time simulation | labelled SIMULATION everywhere; no dosage advice, ever |
+| `demo/` | samples (provenance- and byte-pinned), 3-min script, walkthrough evidence, acceptance sweep | rehearsal notes carry real timings and one documented honest miss |
 
-## What it is not (honest scope)
+## 🔄 The golden path (and a reviewer's loop)
 
-- It does **not** diagnose with certainty — every output is a *suspected* condition with a confidence score.
-- It does **not** prescribe pesticide products, brands, or dosages. Decision support only; a farmer/agronomist must verify.
-- Estimated savings are **model-based simulations**, not field-validated results.
-- V1 supports a small, explicit set of crops/conditions (see *Supported crops* once Phase 3 lands) — not every crop disease.
-- The drone/spraying workflow is **simulated**. No hardware is required or controlled.
+```mermaid
+sequenceDiagram
+    actor U as Visitor (no account)
+    participant W as Wizard
+    participant A as API
+    participant K as ML worker
+    participant P as PDF service
+    U->>W: pick bundled sample (provenance shown)
+    W->>A: POST /images?demo=true
+    A-->>W: 201 (or honest 409: bytes already stored)
+    W->>A: POST /analyses {demo:true}
+    K-->>A: infer → band | abstain + Grad-CAM + identity
+    W->>A: GET /analyses/{id}/prediction
+    A-->>U: "Suspected Tomato - Early blight - 91% confidence" (verbatim)
+    U->>A: POST /analyses/{id}/intervention-zones
+    A-->>U: zones labelled SIMULATION PENDING HUMAN REVIEW
+    U->>P: POST /analyses/{id}/report
+    P-->>U: PDF CMA-2026… (verdict + paired figures + ledger + sha256 receipt)
+```
+
+Signed-in loop (FARMER/AGRONOMIST): farm/field CRUD with drawn boundaries → analyses
+linked to fields → map review (approve/reject with notes) → the ledger lands on the PDF →
+feedback feeds the future data strategy. Business workflow map: [docs/03](docs/03-user-workflows.md).
+
+## What it is — and honestly is not
+
+A full-stack precision-agriculture MVP: smartphone/drone image → suspected-condition
+screening → confidence & uncertainty → localization → severity proxy → explainability →
+field mapping → intervention-zone simulation → savings simulation → human review →
+PDF evidence report.
+
+It does **not** diagnose with certainty; it never prescribes products/brands/dosages;
+savings are simulations; coverage is an explicit small crop/condition set
+(`/supported-crops`); the drone/spray loop is simulated. Known limits are a first-class
+document: [docs/15-limitations.md](docs/15-limitations.md).
 
 ## Repository layout
 
@@ -139,6 +204,13 @@ cd ml          && python -m pytest -q
 python -m pytest simulation -q   # pure-stdlib simulator engine (repo root)
 ```
 
+Three tests in `backend/tests/test_phase15_demo_live.py` are marked `live` — they run
+against the public deployment on demand (rehearsal gate), never in CI:
+
+```bash
+cd backend && python -m pytest -m live -q
+```
+
 ## Dataset setup (Phase 2 pipeline)
 
 Public, licensed datasets — never committed to git
@@ -169,6 +241,8 @@ python -m ml.data.cli pipeline --dataset plantdoc --accept-license
 Every route enforces the license gate, structural verification, `PROVENANCE.json`
 (source, DOI, license, access date, acquisition method, checksums), deterministic 70/15/15
 splits (seed 42, recorded), leakage checks, and `reports/datasets/*-stats.md`.
+Four individually labelled demo photos are redistributed in-repo under
+[dataset rules](docs/datasets.md) — CC0 ×2 and CC BY 4.0 ×2 with attribution.
 
 ## Train / run the model (Phase 3 pipeline)
 
@@ -208,7 +282,7 @@ working, not a bug.
 
 | Doc | Status |
 |---|---|
-| [01 — Product requirements](docs/01-product-requirements.md) | ✅ Phase 0 |
+| [01 — Product requirements](docs/01-product-requirements.md) | ✅ Phase 0 · §7 acceptance checklist all-green 2026-09-28 |
 | [02 — System architecture](docs/02-system-architecture.md) | ✅ Phase 0 (ADRs kept current) |
 | [03 — User workflows](docs/03-user-workflows.md) | ✅ Phase 13 (personas labelled as design hypotheses, not interviews) |
 | [04 — API design](docs/04-api-design.md) | ✅ Phase 5 · re-synced with `backend/app/api/v1/` at Phase 13 |
@@ -218,24 +292,36 @@ working, not a bug.
 | [08 — Eval runbook](docs/08-eval-runbook.md) | ✅ Phase 4 |
 | [09 — Security posture](docs/09-security.md) | ✅ Phase 11 |
 | [10 — Privacy notice](docs/10-privacy.md) | ✅ Phase 11 |
-| [11 — Testing & coverage](docs/11-testing.md) | ✅ Phase 11, counts updated through Phase 13 |
+| [11 — Testing & coverage](docs/11-testing.md) | ✅ Phase 11, counts updated through Phase 15 |
 | [12 — Deployment](docs/12-deployment.md) | ✅ Phase 12 (public demo URLs + live deploy log incl. incidents) |
 | [13 — User guide](docs/13-user-guide.md) | ✅ Phase 13 |
-| [14 — Development roadmap](docs/14-roadmap.md) | ✅ Phase 0, updated through Phase 13 |
+| [14 — Development roadmap](docs/14-roadmap.md) | ✅ all 15 phases complete (2026-09-28) |
 | [15 — Known limitations](docs/15-limitations.md) | ✅ Phase 13 |
 | [16 — Responsible AI](docs/16-responsible-ai.md) | ✅ Phase 13 |
 | [Datasets & license register](docs/datasets.md) | ✅ Phase 0 (pairs with [07 — Data card](docs/07-data-card.md)) |
+| [Demo kit](demo/README.md) — samples, script, walkthrough evidence, pitch outline, rehearsal notes, acceptance sweep | ✅ Phase 15 |
 | [Business package 01–10](business/README.md) | ✅ Phase 14 (indicative figures with sources; honest 0-revenue baseline) |
 | [Taxonomy & model config](ml/configs) — what the model does/doesn't support | ✅ live via `/supported-crops`, `/model-info` |
 | [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) | ✅ Phase 11 (LGPL psycopg + Hippocratic react-leaflet flagged) |
 
+## Contributing
+
+Issues and PRs are welcome — especially around dataset coverage (PlantVillage-family
+licenses), the leaf/non-leaf pre-gate proposal (docs/15), and a formal WCAG pass
+(the one NFR we ship with a recorded caveat). The honesty rules above are the review bar:
+verbatim phrasing, paired figures, no fabricated anything.
+
 ## License
 
-**MIT** — see [LICENSE](LICENSE) (founder decision 2026-09-28, closing the earlier
-"to be confirmed" placeholder recorded in business/08). The MIT license covers the source
-in this repository; the model **weights** are deliberately not in it (AD-008/AD-009 — served
-out-of-band with integrity pinning), and datasets are **not** redistributed — each retains
-its own license, see [docs/datasets.md](docs/datasets.md).
+**MIT** — see [LICENSE](LICENSE). Take it, fork it, build on it.
+
+Two deliberate carve-outs stay honest rather than pretending the repo holds everything:
+
+- the model **weights** are not in git (AD-008/AD-009 — served out-of-band with sha256
+  integrity pinning; reproduce them with the pipeline above, using `reports/` as your receipt);
+- **datasets are not redistributed** beyond the four labelled demo photos — each dataset
+  retains its own license: [docs/datasets.md](docs/datasets.md).
+
 Third-party dependency licenses are audited in
 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) — including the two a reviewer should see
 first: psycopg is LGPL-3.0 (used unmodified) and react-leaflet is Hippocratic-2.1 (ethical-use,

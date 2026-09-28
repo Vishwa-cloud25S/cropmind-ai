@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import { errorMessage, listAnalyses } from "@/lib/api";
+import { isSessionAlive } from "@/lib/auth";
 import type { AnalysisList, AnalysisState } from "@/lib/types";
 import { AnalysisStatusChip } from "@/components/StatusBadge";
 
@@ -43,7 +44,10 @@ export default function HistoryTable(props: HistoryDeps) {
     setLoading(true);
     setError(null);
     try {
-      setData(await listAnalysesFn({ limit, status: statusFilter || undefined }));
+      // Anonymous visitors see the shared flagged demo history (?demo=true) —
+      // an authed list call would 401 and redirect (that killed the no-account flow).
+      const demo = isSessionAlive() ? undefined : true;
+      setData(await listAnalysesFn({ limit, status: statusFilter || undefined, demo }));
     } catch (err) {
       setError(errorMessage(err));
     } finally {

@@ -23,6 +23,26 @@ import AuthedImage from "@/components/AuthedImage";
 const MAX_BYTES = 25 * 1024 * 1024; // mirrors the backend default; server still enforces its own
 const ACCEPT_ATTR = "image/jpeg,image/png,image/webp,image/tiff";
 
+/** Re-encode a bundled sample JPEG in-browser (fresh bytes, same photo). Used ONLY to
+ * satisfy the deployment's global content-dedupe (HTTP 409) for FR-20 sample picks:
+ * every visitor receives byte-identical static assets, so after the first upload the
+ * dedupe honestly refuses repeats. A retake mirrors re-taking the photo. User's own
+ * photos are NEVER re-encoded — this fires only when the file came from the bundle. */
+async function reencodeJpeg(source: File): Promise<File> {
+  const bitmap = await createImageBitmap(source);
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("in-browser re-encode unavailable");
+  ctx.drawImage(bitmap, 0, 0);
+  bitmap.close();
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.93));
+  if (!blob) throw new Error("in-browser re-encode failed");
+  const stem = source.name.replace(/\.jpe?g$/i, "");
+  return new File([blob], `${stem}-retake.jpg`, { type: "image/jpeg" });
+}
+
 type Step = "choose" | "uploaded" | "running" | "complete" | "failed";
 
 interface UploadOk {
@@ -51,6 +71,8 @@ export default function AnalyzeWizard(props: WizardDeps) {
   const [step, setStep] = useState<Step>("choose");
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [retakeNotice, setRetakeNotice] = useState<string | null>(null);
+  const retakeTriedRef = useRef(false); // dedupe-409 ⇒ exactly one bundled-sample retake attempt
   // Phase 15 (FR-20): bundled, individually-labelled sample photos for visitors
   // who have no photo at hand — provenance + honesty note travel with the pick.
   const [selectedSampleId, setSelectedSampleId] = useState<string>("");
@@ -83,8 +105,17 @@ export default function AnalyzeWizard(props: WizardDeps) {
     setSignedIn(isSessionAlive()); // client-only session probe
   }, []);
 
+  // FR-20 honesty: anonymous demo visitors have no account — fetching /farms would
+  // 401 and the shared wrapper redirects that to /login, killing the no-account flow.
+  // Skip the picker when no session exists; the upload still works (flagged demo).
   useEffect(() => {
     let cancelled = false;
+    if (!isSessionAlive()) {
+      setFarms(null);
+      return () => {
+        cancelled = true;
+      };
+    }
     listFarmsFn()
       .then((list) => {
         if (!cancelled) setFarms(list.farms);
@@ -119,6 +150,8 @@ export default function AnalyzeWizard(props: WizardDeps) {
   function pickFile(candidate: File | null) {
     setServerError(null);
     setFileError(null);
+    setRetakeNotice(null);
+    retakeTriedRef.current = false; // a fresh pick re-arms the single dedupe retake
     if (!candidate) {
       setFile(null);
       return;
@@ -162,14 +195,37 @@ export default function AnalyzeWizard(props: WizardDeps) {
     if (!file) return;
     setBusy(true);
     setServerError(null);
+    setRetakeNotice(null);
+    // Phase 10 honesty: without a session the only path is the flagged demo one.
+    const demo = !isSessionAlive(); // handler-time probe (client-only) — always accurate
     try {
-      // Phase 10 honesty: without a session the only path is the flagged demo one.
-      const demo = !isSessionAlive(); // handler-time probe (client-only) — always accurate
       const response = await uploadImageFn(file, { fieldId: fieldId || undefined, demo });
       setUpload({ image: { ...response.image }, deduplicated: response.image.deduplicated });
       setStep("uploaded");
     } catch (err) {
-      setServerError(errorMessage(err));
+      // FR-20 unblock: the bundled samples are byte-identical for every visitor, so
+      // after the first-ever upload the global content-dedupe honestly 409s. For a
+      // bundled pick ONLY (never a user's own photo) retry once with a fresh
+      // in-browser re-encoded retake — and say so on screen.
+      const isDedupe = err instanceof ApiError && err.status === 409;
+      if (isDedupe && selectedSampleId && !retakeTriedRef.current) {
+        retakeTriedRef.current = true;
+        try {
+          const fresh = await reencodeJpeg(file);
+          const response = await uploadImageFn(fresh, { fieldId: fieldId || undefined, demo });
+          setRetakeNotice(
+            "The sample's exact bytes were already stored on this deployment (global " +
+              "content-dedupe doing its job), so a fresh re-encoded retake of the same " +
+              "labelled photo was uploaded. Your own photos are never re-encoded.",
+          );
+          setUpload({ image: { ...response.image }, deduplicated: response.image.deduplicated });
+          setStep("uploaded");
+        } catch (err2) {
+          setServerError(errorMessage(err2));
+        }
+      } else {
+        setServerError(errorMessage(err));
+      }
     } finally {
       setBusy(false);
     }
@@ -254,6 +310,8 @@ export default function AnalyzeWizard(props: WizardDeps) {
     setSelectedSampleId("");
     setServerError(null);
     setWarmingNotice(null);
+    setRetakeNotice(null);
+    retakeTriedRef.current = false;
     transientPollMisses.current = 0;
     setUpload(null);
     setAnalysis(null);
@@ -379,6 +437,11 @@ export default function AnalyzeWizard(props: WizardDeps) {
         <div className="rounded-lg border border-stone-200 p-4">
           <p className="eyebrow">Step 2 of 3</p>
           <h2 className="text-lg font-bold text-stone-900">Stored copy</h2>
+          {retakeNotice ? (
+            <p className="alert-caution mt-2" role="note" data-testid="retake-notice">
+              {retakeNotice}
+            </p>
+          ) : null}
           {upload.deduplicated ? (
             <p className="alert-info mt-2" role="note">
               Identical content was already uploaded before — we reused the existing record (no duplicate stored).
