@@ -7,7 +7,8 @@
 # in-process poller runs inference.
 #
 # No real checkpoint is ever shipped here (AD-008): the public URL runs the
-# deterministic DEMO sample model; every prediction is flagged demo=true.
+# deterministic DEMO sample model; every prediction is flagged demo=true. The
+# sample checkpoint itself IS baked into the image at build time (below).
 FROM python:3.12-slim
 
 # Comments are NOT legal inside a continued ENV statement (Render build 2026-08-11
@@ -33,6 +34,15 @@ COPY backend/alembic.ini ./alembic.ini
 COPY ml ./ml
 COPY simulation ./simulation
 COPY docker/demo-start.sh ./demo-start.sh
+
+# Bake the DEMO sample checkpoint at BUILD time. Runtime generation on a free
+# 512 MB instance starves/OOM-loops the container for minutes at the very first
+# analysis (observed live 2026-09-28 — sustained 503 waves); at build time the
+# RAM/CPU cost is free, and at runtime mlbridge._ensure_sample_checkpoint sees
+# the file and skips generation entirely. This is the SYNTHETIC plumbing model
+# (0.0.0-sample, meta says so) — never a real run, demo flags unchanged.
+RUN OMP_NUM_THREADS=1 python -m ml.training.sample_model \
+    && test -f /app/ml/models/pretrained/sample-mobilenetv3.pt
 
 ENV ML_CONFIG_DIR=/app/ml/configs \
     UPLOAD_DIR=/data/uploads \
