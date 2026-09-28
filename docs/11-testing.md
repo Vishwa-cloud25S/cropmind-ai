@@ -11,7 +11,7 @@ is presented as current.
 | Suite | Framework | Tests | Where it runs |
 |---|---|---|---|
 | Backend API/DB | pytest (TestClient + SQLite) | **122** (incl. 4 doc-set pins, `test_doc_set.py`, Phase 13) | CI job `backend`, every push |
-| ML pipeline | pytest + CPU torch | **112** | CI job `ml`, every push |
+| ML pipeline | pytest + CPU torch | **113** (incl. the sample-model eval-mode contract test, 2026-09-28) | CI job `ml`, every push |
 | Simulation engine | pytest (pure stdlib) | **10** | CI job `ml`, every push |
 | Frontend components | vitest + Testing Library | **77** (12 files) | CI job `frontend`, every push |
 | Static gates | ruff · eslint · tsc --noEmit · next build | — | CI jobs, every push |

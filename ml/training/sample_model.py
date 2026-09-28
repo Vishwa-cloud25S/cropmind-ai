@@ -45,6 +45,26 @@ def build_sample_dataset(classes: list[str], per_class: int = 10, size: int = 96
     return torch.stack(xs), torch.tensor(ys)
 
 
+def _reestimate_bn_stats(model: torch.nn.Module, xs: torch.Tensor, passes: int = 4) -> None:
+    """Re-estimate BatchNorm running statistics over the sample corpus (no learning).
+
+    The synthetic corpus is tiny and gets memorised within a few epochs; the default
+    momentum-averaged BN running stats then mismatch eval mode so badly that served
+    confidence collapses to ~1/num_classes on every input (measured 2026-09-28:
+    train acc 1.000, served top-1 0.075 uniform). A few full-corpus forward passes
+    with cumulative statistics restore eval-mode behaviour. The checkpoint stays what
+    its meta says: synthetic-pattern plumbing, never performance evidence.
+    """
+    for module in model.modules():
+        if isinstance(module, torch.nn.modules.batchnorm._BatchNorm):
+            module.reset_running_stats()
+            module.momentum = None  # cumulative moving average over the passes below
+    model.train()
+    with torch.no_grad():
+        for _ in range(passes):
+            model(xs)
+
+
 def main() -> int:
     set_seed(13)
     classes = class_list()
@@ -54,7 +74,7 @@ def main() -> int:
     criterion = torch.nn.CrossEntropyLoss()
     model.train()
     batch = 32
-    for epoch in range(10):
+    for epoch in range(20):  # 2026-09-28: 10 -> 20 epochs — see _reestimate_bn_stats note
         order = torch.randperm(len(ys))
         total = 0.0
         for start in range(0, len(ys), batch):
@@ -65,6 +85,11 @@ def main() -> int:
             optimizer.step()
             total += loss.item()
         print(f"sample epoch {epoch} | loss {total:.3f}")
+    # Serve in eval mode, honestly: without stat re-estimation the memorised tiny
+    # corpus trains to acc 1.0 while served predictions collapse to ~uniform
+    # (batchnorm momentum-running stats mismatch) — the demo could then only ever
+    # answer INCONCLUSIVE (observed live 2026-09-28).
+    _reestimate_bn_stats(model, xs)
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     meta = {
