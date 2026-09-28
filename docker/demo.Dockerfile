@@ -6,9 +6,11 @@
 # plainly documented in docs/12-deployment.md. It carries torch because the
 # in-process poller runs inference.
 #
-# No real checkpoint is ever shipped here (AD-008): the public URL runs the
-# deterministic DEMO sample model; every prediction is flagged demo=true. The
-# sample checkpoint itself IS baked into the image at build time (below).
+# No real checkpoint is ever shipped here (AD-008): the sample checkpoint itself IS
+# baked into the image at build time (below) as the honest default. AD-009 (Phase 14)
+# amends SERVING only: at runtime the worker may fetch the real checkpoint out-of-band
+# (MODEL_URL + read-only token, sync:false dashboard env — docs/12 §8). Predictions
+# then record demo=false for the real weights; every label is derived from /model-info.
 FROM python:3.12-slim
 
 # Comments are NOT legal inside a continued ENV statement (Render build 2026-08-11

@@ -12,7 +12,7 @@
 
 ![CI](https://github.com/Vishwa-cloud25S/cropmind-ai/actions/workflows/ci.yml/badge.svg)
 
-> **Status: Phases 0–13 done (documentation set complete, 2026-09-28) — backend core live (16-table
+> **Status: Phases 0–14 done (business package + public real-model serving mechanism AD-009, 2026-09-28) — backend core live (16-table
 > schema, uploads pipeline, DB-backed analysis queue + worker, `/images` `/analyses` `/predictions`
 > `/farms` `/fields` `/intervention-zones` `/simulations` `/reports` `/auth` `/admin`), the real frontend
 > (dashboard, analyze wizard, analysis view with Grad-CAM, history, farms/fields CRUD, model
@@ -21,9 +21,11 @@
 > reproducibly stored), PDF field reports (Suspected phrasing verbatim, zone review ledger, unique
 > `CMA-…` report ID), **accounts & roles** (bcrypt + JWT, server-side logout revocation,
 > FARMER/AGRONOMIST/ADMIN scoping, per-account feedback, admin console, per-IP rate limits with honest
-> 429s), a free-tier **public demo** (Phase 12 — below, with an honest instability log), and the full
-> numbered **documentation set 01–16** (Phase 13); formal M1 gates measured 2026-08-09 (Gate C,
-> operator CPU).**
+> 429s), a free-tier **public demo** (Phase 12 — below, with an honest instability log), the full
+> numbered **documentation set 01–16** (Phase 13), and the **business package** `business/` — plan,
+> sourced market + competitor research, UK strategy, pricing-for-validation, 3-year scenarios,
+> data/IP strategy, risk register and endorsement evidence map (Phase 14, everything indicative);
+> formal M1 gates measured 2026-08-09 (Gate C, operator CPU).**
 > Baseline run `20260808-180238-0.1.0`: in-domain held-out top-1 **0.9959** ✅ (≥ 0.80) ·
 > CPU latency **110.4 ms p95** ✅ (≤ 2,500 ms) · PlantDoc field OOD top-1 **0.2349** 🔶
 > (SHORTFALL vs 0.50 target — published as-is; both accuracy numbers travel together, always).
@@ -42,9 +44,13 @@
 
 **Live public demo** (free tier — sleeps when idle; the first action after idle can take ~a minute
 while it wakes, and the app waits and tells you): **https://cropmind-ai-theta.vercel.app**
-(API: https://cropmind-demo-api.onrender.com). The demo runs the **DEMO sample model only** —
-synthetic patterns, flagged DEMO on every surface (AD-008: the evaluated checkpoint never leaves
-the operator's machine). Deploy record + honest incident log:
+(API: https://cropmind-demo-api.onrender.com). **Which weights the demo serves is public and
+derived, never claimed:** `GET /model-info` → `serving.weights_origin` reads `sample`
+(clearly-flagged synthetic plumbing model) until the founder completes the one-time AD-009
+setup (docs/12 §8), then `remote-checkpoint` (the evaluated real model, fetched out-of-band with
+a sha256 pin). UI and PDF banners follow that value automatically — sample → DEMO banner; real
+weights via the demo path → DEMO TRIAL banner carrying both evaluation figures. Weights still
+never travel via git (AD-008). Deploy record + honest incident log:
 [docs/12-deployment.md](docs/12-deployment.md) §7.
 
 | | |
@@ -85,8 +91,7 @@ cropmind-ai/
 ├── data/             # raw / processed / annotations / splits  (never committed)
 ├── simulation/       # drone + precision-spray simulators (Phase 8)
 ├── docs/             # product, architecture, datasets, model/data cards, roadmap
-├── business/         # business plan, market, pricing, financial model (Phase 14)
-├── endorsement/      # evidence package for Innovator Founder Visa (Phase 14)
+├── business/         # business plan, market, pricing, financials, risks, endorsement evidence map (Phase 14)
 ├── reports/          # generated model-evaluation reports
 └── .github/          # CI workflows (Phase 1)
 ```
@@ -219,6 +224,7 @@ working, not a bug.
 | [15 — Known limitations](docs/15-limitations.md) | ✅ Phase 13 |
 | [16 — Responsible AI](docs/16-responsible-ai.md) | ✅ Phase 13 |
 | [Datasets & license register](docs/datasets.md) | ✅ Phase 0 (pairs with [07 — Data card](docs/07-data-card.md)) |
+| [Business package 01–10](business/README.md) | ✅ Phase 14 (indicative figures with sources; honest 0-revenue baseline) |
 | [Taxonomy & model config](ml/configs) — what the model does/doesn't support | ✅ live via `/supported-crops`, `/model-info` |
 | [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) | ✅ Phase 11 (LGPL psycopg + Hippocratic react-leaflet flagged) |
 

@@ -25,6 +25,15 @@ class Settings(BaseSettings):
 
     # Phase 5 — analysis worker (worker process only; API never imports torch)
     model_checkpoint: str | None = None  # MODEL_CHECKPOINT; unset => clearly-flagged DEMO sample model
+
+    # Phase 14 — AD-009: real-checkpoint delivery for the public deployment (see docs/02, docs/12 §8).
+    # Weights are still never committed to git (AD-008). When MODEL_CHECKPOINT is unset and MODEL_URL is
+    # set, the worker downloads the real checkpoint once (e.g. from a private Hugging Face model repo)
+    # into the cache dir and serves it flagged demo=false — never a silent fallback to the sample model.
+    model_url: str | None = None  # MODEL_URL — https URL of the checkpoint file (e.g. HF .../resolve/main/...)
+    model_url_token: str | None = None  # MODEL_URL_TOKEN — Bearer token (secret; never logged, never exposed via API)
+    model_url_sha256: str | None = None  # MODEL_URL_SHA256 — integrity pin; a mismatch fails loudly, never serves
+    model_cache_dir: str | None = None  # MODEL_CACHE_DIR — default: "models-cache" next to the upload dir
     worker_poll_interval_s: float = 2.0
     job_max_attempts: int = 3
     job_heartbeat_timeout_s: int = 120  # RUNNING job silent longer than this => retried/failed
@@ -63,6 +72,14 @@ class Settings(BaseSettings):
         if self.ml_config_dir:
             return Path(self.ml_config_dir)
         return Path(__file__).resolve().parents[3] / "ml" / "configs"
+
+    @property
+    def resolved_model_cache_dir(self) -> Path:
+        """Where remotely-delivered checkpoints land (AD-009). Defaults to a sibling
+        of the upload dir so one mounted data volume covers both (Render: /data)."""
+        if self.model_cache_dir:
+            return Path(self.model_cache_dir)
+        return Path(self.upload_dir).resolve().parent / "models-cache"
 
 
 @lru_cache

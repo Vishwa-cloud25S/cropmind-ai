@@ -10,6 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.config import Settings, get_settings
 from app.services.config_loader import ConfigNotFoundError, load_model_config, load_taxonomy
+from app.services.mlbridge import SAMPLE_CKPT, find_repo_root  # torch-free module (lazy torch import)
+from app.services.model_delivery import serving_block
 
 router = APIRouter(tags=["model"])
 
@@ -58,12 +60,24 @@ def model_info(settings: SettingsDep) -> dict:
         config = load_model_config(str(settings.resolved_ml_config_dir))
     except ConfigNotFoundError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    evaluation = config.get("evaluation") or {}
     return {
         "model": config.get("model", {}),
         "confidence_bands": config.get("confidence_bands"),
         "uncertainty_method": (config.get("uncertainty") or {}).get("method"),
         "severity_method": (config.get("severity") or {}).get("method"),
         "updated": config.get("updated"),
+        # Phase 14 (AD-009): which weights THIS deployment serves — the UI derives
+        # every "sample vs real" label from this block, never from hardcoded copy.
+        "serving": serving_block(settings, repo_root=find_repo_root(), sample_checkpoint=SAMPLE_CKPT),
+        # Structured duo from ml/configs/model.yaml: the ONLY accuracy numbers the
+        # product may quote, and they always travel together.
+        "evaluation": {
+            "in_domain_top1": evaluation.get("in_domain_top1"),
+            "out_of_domain_top1": evaluation.get("out_of_domain_top1"),
+            "out_of_domain_dataset": evaluation.get("out_of_domain_dataset"),
+            "rule": "in-domain and out-of-distribution figures are always quoted together — never one without the other",
+        },
         "registry_note": "Model weights, evaluation reports and dataset provenance are versioned "
         "via model_versions / dataset_sources (Phase 5). Predictions will record "
         "model_version + dataset_version for reproducibility.",

@@ -1,11 +1,16 @@
 """Worker-only bridge to the ML module (torch imported lazily — the API never does).
 
-Checkpoint policy (honest, never silent):
-- MODEL_CHECKPOINT set  → the real run (e.g. runs/20260808-180238-0.1.0/checkpoint.pt).
-- unset                 → DEMO sample model (synthetic patterns, `0.0.0-sample`),
+Checkpoint policy (honest, never silent — resolution order fixed by configuration):
+- MODEL_CHECKPOINT set        → the real run (e.g. runs/20260808-180238-0.1.0/checkpoint.pt).
+- MODEL_URL set (AD-009)      → the real checkpoint downloaded once from a private repo
+  (Hugging Face + read-only token; optional sha256 pin) into the cache dir.
+- both unset                  → DEMO sample model (synthetic patterns, `0.0.0-sample`),
   generated once via `python -m ml.training.sample_model`. Every prediction made with
   it is flagged `demo=True` at the API/DB level — demo output is plumbing evidence,
   never a field-performance claim.
+
+A configured-but-unreachable real checkpoint fails loudly; it never silently
+downgrades to the sample model (that would change model identity under the user).
 """
 
 from __future__ import annotations
@@ -16,6 +21,8 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+from app.services import model_delivery
 
 logger = logging.getLogger("cropmind.mlbridge")
 
@@ -47,6 +54,7 @@ class ModelHandle:
     predictor: object  # ml.inference.predictor.Predictor (typed loosely: torch is worker-only)
     checkpoint_path: Path
     demo: bool
+    origin: str = model_delivery.ORIGIN_SAMPLE  # which delivery path produced these weights (AD-009)
 
 
 def _ensure_sample_checkpoint(repo_root: Path) -> Path:
@@ -65,25 +73,52 @@ def _ensure_sample_checkpoint(repo_root: Path) -> Path:
     return target
 
 
-def get_predictor(checkpoint: str | None, repo_root: Path, device: str = "cpu") -> ModelHandle:
-    """Cached per checkpoint path. Imports torch/torchvision only on first real use.
+def get_predictor(
+    checkpoint: str | None,
+    repo_root: Path,
+    device: str = "cpu",
+    *,
+    model_url: str | None = None,
+    model_url_token: str | None = None,
+    model_url_sha256: str | None = None,
+    model_cache_dir: Path | None = None,
+) -> ModelHandle:
+    """Cached per resolved checkpoint. Imports torch/torchvision only on first real use.
 
-    Empty-string checkpoint values (compose passthrough default) mean "unset" => DEMO.
+    Empty-string values (compose passthrough default) mean "unset". Resolution order
+    is configuration-fixed (see module docstring): local path → remote URL (AD-009)
+    → clearly-flagged DEMO sample model. A failing remote download raises —
+    there is no silent downgrade.
     """
     checkpoint = checkpoint or None
-    key = checkpoint or "DEMO"
+    model_url = model_url or None
+    origin = model_delivery.weights_origin(checkpoint, model_url)
+    demo = origin == model_delivery.ORIGIN_SAMPLE
+    if origin == model_delivery.ORIGIN_LOCAL:
+        ckpt_path = Path(checkpoint)
+        if not ckpt_path.exists():
+            raise FileNotFoundError(f"checkpoint not found: {ckpt_path}")
+    elif origin == model_delivery.ORIGIN_REMOTE:
+        if model_cache_dir is None:
+            raise RuntimeError("MODEL_URL set but no model cache dir resolved (see settings.resolved_model_cache_dir)")
+        ckpt_path = model_delivery.download_checkpoint(
+            model_url, token=model_url_token, sha256=model_url_sha256, cache_dir=model_cache_dir
+        )
+        if not ckpt_path.exists():  # pragma: no cover - download contract
+            raise FileNotFoundError(f"downloaded checkpoint missing: {ckpt_path}")
+    else:
+        ckpt_path = _ensure_sample_checkpoint(repo_root)
+    key = f"{origin}:{ckpt_path}"
     if key in _cache:
         return _cache[key]
-    demo = checkpoint is None
-    ckpt_path = _ensure_sample_checkpoint(repo_root) if demo else Path(checkpoint)
-    if not ckpt_path.exists():
-        raise FileNotFoundError(f"checkpoint not found: {ckpt_path}")
     from ml.inference.predictor import Predictor
 
     predictor = Predictor(ckpt_path, device=device)
     if demo:
         logger.warning("DEMO model active (%s) — predictions are plumbing demos, never crop claims", ckpt_path)
-    handle = ModelHandle(predictor=predictor, checkpoint_path=ckpt_path, demo=demo)
+    else:
+        logger.info("real checkpoint active via %s (%s)", origin, ckpt_path)
+    handle = ModelHandle(predictor=predictor, checkpoint_path=ckpt_path, demo=demo, origin=origin)
     _cache[key] = handle
     return handle
 

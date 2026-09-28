@@ -45,7 +45,7 @@ is a bug — file it like one.
 
 | # | Limitation | Where documented |
 |---|---|---|
-| P1 | Public demo runs the **DEMO sample model only** (no real checkpoint leaves the operator's machine, AD-008); demo output is plumbing evidence, never performance | docs/12 §1, model card |
+| P1 | **Amended 2026-09-28 (AD-009):** the public deployment may serve the real checkpoint delivered out-of-band (weights still never travel via git/image; fetched at runtime from a private repo — runbook docs/12 §8). Which weights serve is always public at `/model-info` → `serving.weights_origin`, and every prediction/report carries its true weight identity: sample = DEMO banner; real weights via the demo path = DEMO TRIAL banner with both evaluation figures. Before 2026-09-28 the public demo ran the DEMO sample model only — plumbing evidence, never performance | docs/12 §1 + §8, model card |
 | P2 | **Free-tier hosting**: instance sleeps after ~15 min idle (~1 min cold start, client retries honestly); 512 MB RAM ceiling with a measured-tight demo stack and a documented paid fallback; demo Postgres is size- and lifetime-limited | docs/12 §2, §5 |
 | P3 | **Single-process demo topology** collapses API+worker into one container (ADR-004 split stays in local/production compose); no horizontal scaling, no multi-instance rate limiting (in-memory store seam is single-node) | docs/12 §1, docs/09 |
 | P4 | **JWT in `localStorage`** is XSS-readable; mitigations (server-side revocation, 12 h expiry, proactive expiry) documented — the API is the enforcement boundary | docs/04 §3.10, docs/09 |

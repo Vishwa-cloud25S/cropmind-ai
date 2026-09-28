@@ -39,7 +39,15 @@ def tick(worker_id: str, *, handle: ModelHandle | None = None) -> int:
         return 0
     logger.info("claimed job %s (analysis %s, attempt %d)", job.id, job.analysis_id, job.attempts)
     try:
-        handle = handle or get_predictor(settings.model_checkpoint, REPO_ROOT, device="cpu")
+        handle = handle or get_predictor(
+            settings.model_checkpoint,
+            REPO_ROOT,
+            device="cpu",
+            model_url=settings.model_url,
+            model_url_token=settings.model_url_token,
+            model_url_sha256=settings.model_url_sha256,
+            model_cache_dir=settings.resolved_model_cache_dir,
+        )
         queue.heartbeat(job.id, worker_id)
         analysis_svc.process_analysis(
             get_session_factory(), job.analysis_id, handle=handle, upload_dir=Path(settings.upload_dir)

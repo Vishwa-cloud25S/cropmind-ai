@@ -13,8 +13,11 @@ Honesty rules enforced here (this is a document a user may print and act on):
   * Human review status is printed per zone and in totals (PENDING /
     APPROVED / REJECTED) — a report can never make an unreviewed zone look
     endorsed.
-  * Demo predictions (sample model) carry a bold DEMO banner; limitations and
-    confidence bands are always printed (docs/06 model card).
+  * Demo predictions carry a bold banner that names WHICH model produced them:
+    synthetic sample weights get the DEMO banner; the real checkpoint used via
+    the public demo path (AD-009) gets the DEMO TRIAL banner with the paired
+    in-domain/out-of-domain evaluation figures — never a bare accuracy claim.
+    Limitations and confidence bands are always printed (docs/06 model card).
   * "Files win": the persisted Report row's pdf_path is the artifact of
     record; regeneration refreshes the same row (human report_id stable) and
     overwrites the same file so no stale copy survives silently.
@@ -41,6 +44,19 @@ GENERATOR = {"name": "reportlab", "feature": "field-report", "version": "1"}  # 
 # Shared-band text mirrors ml/configs/model.yaml (the live values also served by
 # /supported-crops); printed verbatim so a paper reader knows the abstain rule.
 BAND_TEXT = "HIGH >= 0.60 | MEDIUM >= 0.45 | LOW >= 0.25 | below LOW = INCONCLUSIVE (abstain)"
+
+# Banners (pinned by tests): the sample-model wording must never change silently,
+# and the real-model trial banner must always carry BOTH evaluation figures.
+SAMPLE_BANNER = (
+    "**DEMO REPORT — produced by the clearly-flagged synthetic sample model; "
+    "NOT a real finding. Do not act on this document.**"
+)
+TRIAL_BANNER = (
+    "**DEMO TRIAL — analysed by the real {name} v{version} via the public demo path. "
+    "In-domain held-out top-1 0.9959 and PlantDoc field OOD top-1 0.2349 are always quoted "
+    "together (model card, docs/06). Decision support, not a diagnosis: human verification "
+    "required; no chemical product or dosage guidance. Do not treat as a definitive finding.**"
+)
 
 
 class ReportNotReady(Exception):
@@ -135,6 +151,10 @@ def report_basis(
         "analysis_id": analysis.id,
         "analysis_status": analysis.status,
         "demo": bool(analysis.demo or prediction.demo or (model_version.demo if model_version else False)),
+        # Banner needs the two meanings of "demo" separated (AD-009): the PATH can be
+        # a public demo trial while the WEIGHTS are the real checkpoint (or vice versa).
+        "analysis_demo": bool(analysis.demo),
+        "weights_demo": (bool(model_version.demo) if model_version else None),
         "generated_at_utc": datetime.now(UTC).isoformat(timespec="seconds"),
         "prediction": {
             "phrasing": prediction.phrasing,
@@ -261,10 +281,12 @@ def _report_lines(report: models.Report, basis: dict[str, Any]) -> list[str]:
     lines: list[str] = []
     lines.append("CROPMIND AI — FIELD REPORT")
     if basis["demo"]:
-        lines.append(
-            "**DEMO REPORT — produced by the clearly-flagged synthetic sample model; "
-            "NOT a real finding. Do not act on this document.**"
-        )
+        if basis.get("weights_demo") is False:
+            # Real checkpoint served via the public demo path (AD-009): name the real
+            # model honestly and carry both evaluation figures — never a bald claim.
+            lines.append(TRIAL_BANNER.format(name=basis["model"]["name"], version=basis["model"]["version"]))
+        else:
+            lines.append(SAMPLE_BANNER)
     lines.append("—")
     lines.append(f"Report ID: {report.report_id}")
     lines.append(_kv("Generated at (UTC):", basis["generated_at_utc"]))

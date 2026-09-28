@@ -12,8 +12,11 @@ services:
     envVars:
       - key: APP_ENV
         value: production
-      # Public demo truth: no real checkpoint ships (AD-008). DEMO sample model,
-      # every prediction flagged demo=true. Never set DEMO_MODE=false here.
+      # DEMO_MODE stays true on the public URL: unauthenticated visitors only ever
+      # reach the flagged demo path. AD-009 (Phase 14) amends WHICH weights serve:
+      # the real checkpoint may be fetched out-of-band (MODEL_URL below) — every
+      # prediction still records its true weight identity and every UI/PDF label
+      # is derived from it. Never set DEMO_MODE=false here.
       - key: DEMO_MODE
         value: "true"
       - key: DATABASE_URL
@@ -26,6 +29,18 @@ services:
       # value like https://<project>.vercel.app — comma-separated list is supported.
       - key: CORS_ORIGINS
         sync: false
+      # AD-009 (Phase 14): out-of-band real-checkpoint delivery. Set these in the
+      # Render dashboard ONLY (sync:false = never in git), AFTER uploading the
+      # checkpoint to a private Hugging Face model repo (docs/12-deployment.md §8).
+      # Left unset => the clearly-flagged synthetic sample model serves (honest default).
+      - key: MODEL_URL
+        sync: false
+      - key: MODEL_URL_TOKEN
+        sync: false
+      - key: MODEL_URL_SHA256
+        sync: false
+      - key: MODEL_CACHE_DIR
+        value: /data/models-cache
 
 databases:
   - name: cropmind-demo-db

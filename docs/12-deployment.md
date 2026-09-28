@@ -127,6 +127,9 @@ The first live evening surfaced the two failure shapes this document predicts:
 
 | 2026-09-28 | https://cropmind-demo-api.onrender.com | Render free web (unchanged infra) | **SEED VERIFICATION FAILED, recorded verbatim:** post-recovery seeding queued analyses, then the instance served sustained edge **503** waves for ~10+ minutes and polls never saw a terminal status — as promised in the row above, the verification landed here verbatim | root cause: **runtime checkpoint generation** — with the 20-epoch generator, first-analysis torch training on a shared free vCPU inside a 512 MB instance starves/OOM-loops the container (restarts → ephemeral disk wipes the half-built checkpoint → loop repeats). Design-flaw class: doing ANY torch *training* at request time on the free tier. **Fix shipped in this push:** the sample checkpoint is **baked into the image at build time** (`RUN python -m ml.training.sample_model`, pinned by `test_demo_bake.py`); at runtime `mlbridge` sees the file and skips generation. AD-008 unchanged — synthetic 0.0.0-sample plumbing model, demo flags everywhere. Post-deploy re-seed is again the live verification |
 
+| 2026-09-28 | https://cropmind-demo-api.onrender.com | Render free web (unchanged infra) | **SEED + GOLDEN PATH VERIFIED after the bake fix:** showcase re-seeded (`SHOWCASE_SALT=42` — sha256-dedupe lesson recorded: identical re-uploads return old image ids whose files died with the previous container, so the seeder perturbs noise per batch) — SUSPECTED·HIGH demo=true analyses, APPROVED zone, report `CMA-20260928-847240` downloads 200. Anonymous demo path verified live (`Suspected Potato - Late blight - 100% confidence`, demo=true). Founder solo golden path verified end-to-end (his own account, real leaf photo → SUSPECTED HIGH → zone APPROVED → PDF `CMA-20260928-26D3CC` audited against every honesty rule) | crash-era FAILED rows (heartbeat lost / FileNotFoundError from the wiped-disk window) retained in the DB as the honest audit trail; his account promoted FARMER → ADMIN via `/admin` (another admin's click — self-change is blocked by design) |
+| 2026-09-28 | https://cropmind-demo-api.onrender.com | Render free web (unchanged infra) | **PHASE 14 (AD-009) — real-model serving wired (this push):** the worker may now fetch the real checkpoint out-of-band (`MODEL_URL`/`MODEL_URL_TOKEN`/`MODEL_URL_SHA256`, all `sync:false` — never committed; runbook §8). When set: predictions record the true weight identity (`demo=false`, version 0.1.0), `/model-info` `serving` reports `remote-checkpoint`, and UI/PDF labels derive from it (DEMO TRIAL banner with both evaluation figures). Unset: the flagged sample model serves — the honest default, unchanged | switch itself awaits the founder's one-time checkpoint upload to a private Hugging Face repo (§8) — the repo claims nothing until `/model-info` says `weights_origin: remote-checkpoint`. This push redeploys → showcase re-seeded after it settles (runbook step 6) |
+
 Record each re-deploy as a row. If a deploy changes behaviour (e.g. RAM fallback to a paid
 instance), the change is described here and in the commit message — never only in a dashboard.
 
@@ -144,7 +147,47 @@ instance), the change is described here and in the commit message — never only
    becomes ADMIN again, by design). Record the outcome **and the new DB's creation date** (new
    expiry ≈ creation + 30 days — set a reminder ~day 24) as the next §7 row.
 6. **Ephemeral disk caveat for any reseeded content:** uploads and generated PDFs live on the
-   service's ephemeral filesystem — **every redeploy (including any push to `main`) wipes them**
-   while their DB rows survive, so downloads then 409 honestly. Seed/re-seed showcase content
-   only *after* the last planned push, and re-seed after any later redeploy if the demo should
-   stay populated.
+   service's ephemeral filesystem — **every container replacement wipes them**: any redeploy
+   (including any push to `main`), any manual restart, and any free-tier **sleep/wake cycle**
+   (evidenced 2026-09-28: the instance slept and a previously-fresh showcase PDF then answered
+   409 — same wipe class as a redeploy) — while their DB rows survive, so downloads then 409
+   honestly. Seed/re-seed showcase content only *after* the last planned push, and re-seed
+   after any such event if the demo should stay populated.
+
+## 8. Serving the real checkpoint publicly (AD-009, Phase 14)
+
+One-time operator setup — ~15 minutes, costs £0. The checkpoint still never touches git
+(AD-008): delivery is out-of-band via a **private Hugging Face model repo** read through a
+**read-only token**. Implementation: `backend/app/services/model_delivery.py` (pinned by
+`backend/tests/test_model_delivery.py`).
+
+1. **Verify the local checkpoint byte hash BEFORE uploading** — `ml/configs/model.yaml`
+   records the reference sha256 (`77d6e020179e…`, recorded 2026-08-11). Windows PowerShell:
+   `Get-FileHash runs\20260808-180238-0.1.0\checkpoint.pt -Algorithm SHA256` → the values must match.
+2. huggingface.co → **New Model repository** → name it (e.g. `cropmind-mobilenetv3`) →
+   set **Private** → upload `checkpoint.pt` via the web UI (file view → upload).
+3. huggingface.co → **Settings → Access Tokens** → create a **fine-grained READ** token
+   scoped to just that repository → copy it (shown once).
+4. Render → `cropmind-demo-api` → **Environment** (all three are declared `sync:false` in
+   `render.yaml` — set values in the dashboard, never in git):
+   - `MODEL_URL` = `https://huggingface.co/<your-user>/<repo>/resolve/main/checkpoint.pt`
+   - `MODEL_URL_TOKEN` = the read token from step 3 (secret)
+   - `MODEL_URL_SHA256` = the sha256 from step 1 (integrity pin — a mismatch refuses to serve)
+   → **Save and deploy**.
+5. **Verify honestly (files win):**
+   - `GET /model-info` → `serving.weights_origin == "remote-checkpoint"`; `weights_state`
+     flips `pending-first-download` → `downloaded` after the first analysis;
+   - run one analysis (demo path is fine) → prediction shows model version **`0.1.0`**
+     (not `0.0.0-sample`) and `demo: false`; the UI truth panel reads
+     "serving: real model · remote (AD-009)";
+   - generate its report → the banner is **DEMO TRIAL** (real weights via the demo path)
+     carrying both evaluation figures (0.9959 in-domain / 0.2349 PlantDoc OOD) — never the
+     sample banner. Signed-in non-demo analyses produce reports with no demo banner at all,
+     model identity and limitations printed as always.
+6. **Record the switch as a §7 row.** Roll back by clearing the three values → Save and deploy
+   → back to the flagged sample model (say so in that row too).
+
+**Honest-failure behaviour (pinned by tests):** a wrong URL, expired token or hash mismatch
+**fails the analysis with the verbatim reason** — the system never silently falls back to the
+sample model, because that would change model identity under the user. The secret token is
+never logged and never exposed by the API (`/model-info` shows only the source host).

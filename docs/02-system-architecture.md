@@ -104,6 +104,15 @@ network use, or a paid enterprise license) are a real business issue for a SaaS 
 - **AD-007 No Google Maps** — Leaflet + OSM, with self-hostable tile option documented.
 - **AD-008 Model registry** — weights never in git; `model_versions` table stores name, version,
   dataset version, threshold version, checksum, eval-report path. Every prediction references it.
+- **AD-009 Public real-model serving (2026-09-28; amends what AD-008 implies for the public
+  deployment, founder decision)** — the public URL may serve the real checkpoint fetched at
+  runtime from a private repository (Hugging Face private model repo + read-only token,
+  `sync:false` platform env — operator runbook docs/12 §8). Weights still never enter git or
+  the image. Honesty invariants unchanged: Suspected phrasing, abstention below LOW, no
+  chemical advice, paired metrics on every surface, true weight identity recorded per
+  prediction (`model_versions`), labels derived from `/model-info` `serving` — and a failing
+  delivery fails loudly; it never silently swaps in the sample model. Accepted residual
+  risks (extraction via API, third-party runtime custody) are recorded in business/09 R6.
 
 ## 5. Data model (Phase 5 target)
 

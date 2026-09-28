@@ -41,7 +41,11 @@ def test_demo_service_is_demo_mode_and_database_is_wired() -> None:
     doc = yaml.safe_load(_read("render.yaml"))
     env = {e["key"]: e for e in doc["services"][0]["envVars"]}
     assert env["DEMO_MODE"]["value"] == "true"  # public URL never serves unflagged output
-    assert "MODEL_CHECKPOINT" not in env  # no real checkpoint on free hosting (AD-008)
+    assert "MODEL_CHECKPOINT" not in env  # weights still never ship via the repo/image (AD-008)
+    # AD-009 (Phase 14): the real checkpoint MAY be delivered out-of-band — but every
+    # value involved stays dashboard-set (sync:false); nothing secret commits to git.
+    for key in ("MODEL_URL", "MODEL_URL_TOKEN", "MODEL_URL_SHA256"):
+        assert env[key]["sync"] is False, f"{key} must never carry a committed value (AD-009)"
     assert env["DATABASE_URL"]["fromDatabase"]["name"] == doc["databases"][0]["name"]
     assert env["JWT_SECRET_KEY"]["generateValue"] is True  # never a committed secret
     assert env["CORS_ORIGINS"]["sync"] is False  # operator sets the actual Vercel origin

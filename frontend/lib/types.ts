@@ -281,6 +281,25 @@ export interface ConfidenceBands {
   high: number;
 }
 
+/** Phase 14 (AD-009): which weights THIS deployment serves — every "sample vs
+ * real" label in the UI is derived from this block, never from hardcoded copy. */
+export interface ServingInfo {
+  weights_origin: "local-checkpoint" | "remote-checkpoint" | "sample";
+  demo_mode: boolean;
+  weights_state: string;
+  source_host: string | null;
+  integrity: string;
+  label_rule: string;
+}
+
+/** The only accuracy figures the product may quote — they always travel as a pair. */
+export interface EvaluationPair {
+  in_domain_top1: number | null;
+  out_of_domain_top1: number | null;
+  out_of_domain_dataset: string | null;
+  rule: string;
+}
+
 export interface ModelInfo {
   model: Record<string, unknown>;
   confidence_bands: ConfidenceBands;
@@ -289,6 +308,8 @@ export interface ModelInfo {
   updated: string | null;
   registry_note: string;
   client_notice: string;
+  serving?: ServingInfo;
+  evaluation?: EvaluationPair;
 }
 
 export interface ConditionInfo {

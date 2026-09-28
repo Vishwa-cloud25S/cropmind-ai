@@ -52,3 +52,7 @@ evaluation:
   held_out_dataset: plantvillage_test_split
   out_of_domain_dataset: plantdoc       # honest domain-gap measurement (M1 gate 2)
   report_dir: reports/model_evaluation/
+  # The only accuracy figures the product may quote (Phase 14): they are served
+  # verbatim by /model-info and always travel as a pair — never one without the other.
+  in_domain_top1: 0.9959               # reports/model_evaluation/summary.json (run 20260808-180238-0.1.0)
+  out_of_domain_top1: 0.2349           # PlantDoc field imagery — honest domain gap, published as-is

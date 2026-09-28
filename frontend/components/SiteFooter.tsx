@@ -28,6 +28,7 @@ export default function SiteFooter() {
           <p className="text-sm font-semibold text-stone-900">Resources</p>
           <ul className="mt-3 space-y-2 text-sm text-stone-600">
             <li><Link href="/model-information" className="hover:text-emerald-900">Model information</Link></li>
+            <li><Link href="/about" className="hover:text-emerald-900">About the founder</Link></li>
             <li>
               <a
                 href="https://github.com/Vishwa-cloud25S"

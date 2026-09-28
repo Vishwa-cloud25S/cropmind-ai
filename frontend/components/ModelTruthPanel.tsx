@@ -65,9 +65,18 @@ export default function ModelTruthPanel(props: TruthDeps) {
     <section className="card" aria-label="Model truth" data-testid="model-truth">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-bold text-stone-900">Model truth (live from this deployment)</h2>
-        {ready === null ? null : (
-          <span className={ready ? "chip-high" : "chip-low"}>{ready ? "API + database ready" : "API not ready"}</span>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {info?.serving ? (
+            <span className={info.serving.weights_origin === "sample" ? "chip-muted" : "chip-high"} data-testid="serving-chip">
+              {info.serving.weights_origin === "sample"
+                ? "serving: sample model (flagged)"
+                : `serving: real model · ${info.serving.weights_origin === "remote-checkpoint" ? "remote (AD-009)" : "local"}`}
+            </span>
+          ) : null}
+          {ready === null ? null : (
+            <span className={ready ? "chip-high" : "chip-low"}>{ready ? "API + database ready" : "API not ready"}</span>
+          )}
+        </div>
       </div>
 
       {error ? (
@@ -111,8 +120,26 @@ export default function ModelTruthPanel(props: TruthDeps) {
         </div>
       </dl>
 
-      {truth?.model_available === false ? (
-        <p className="alert-caution mt-4" role="note">
+      {info?.serving?.weights_origin === "sample" ? (
+        <p className="alert-caution mt-4" role="note" data-testid="serving-notice">
+          This deployment serves the clearly-flagged synthetic sample model ({info.serving.weights_state}) — every
+          prediction is stamped <code>demo: true</code> and is plumbing evidence, never field performance. The real
+          checkpoint can be wired into this same deployment without any code change (AD-009, operator steps in
+          docs/12 §8).
+        </p>
+      ) : info?.serving ? (
+        <p className="alert-caution mt-4" role="note" data-testid="serving-notice">
+          This deployment serves the real {modelName} v{modelVersion} (
+          {info.serving.weights_origin === "remote-checkpoint"
+            ? `delivered out-of-band, ${info.serving.integrity}`
+            : "operator-local checkpoint"}
+          ). In-domain held-out top-1 {info.evaluation?.in_domain_top1 ?? "—"} and{" "}
+          {info.evaluation?.out_of_domain_dataset ?? "PlantDoc"} field OOD top-1{" "}
+          {info.evaluation?.out_of_domain_top1 ?? "—"} are always quoted together — field images differ from lab
+          images, and every prediction still requires human verification.
+        </p>
+      ) : truth?.model_available === false ? (
+        <p className="alert-caution mt-4" role="note" data-testid="serving-notice">
           The production model is not wired into this deployment yet — analyses run against the clearly-flagged
           synthetic sample model and every prediction is stamped <code>demo: true</code>. In-domain and
           out-of-distribution evaluation numbers live on the Model information page.

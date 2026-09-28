@@ -10,6 +10,7 @@ const NAV = [
   { href: "/simulate", label: "Simulate" },
   { href: "/reports", label: "Reports" },
   { href: "/analyses", label: "History" },
+  { href: "/about", label: "About" },
 ];
 
 export default function SiteHeader() {
