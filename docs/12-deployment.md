@@ -40,7 +40,7 @@ Starter ($7/mo) — or split the poller out as a second service on a paid tier.
 | Limit | Vendor-published fact | Mitigation / honest framing |
 |---|---|---|
 | Web service spin-down | free service sleeps after **15 min idle**; cold start **~1 min** ([Render docs/pricing, 2026](https://render.com/articles/platforms-with-a-real-free-tier-for-developers-in-2026)) | open the URL 2 min before a live demo; the UI loading state is honest |
-| Postgres expiry | free DB **expires 30 days** after creation, deleted after a 14-day grace (same source) | the demo dataset is throwaway by design; re-seed is `alembic upgrade head` + `app.db.seed` at boot; note the creation date in the deploy log (§7) |
+| Postgres expiry | free DB **expires 30 days** after creation, deleted after a 14-day grace (same source) | the demo dataset is throwaway by design; re-seed is `alembic upgrade head` + `app.db.seed` at boot; note the creation date in the deploy log (§7). **Confirmed live:** the 2026-08-11 DB was deleted after grace (~2026-09-24) — its host simply stopped resolving, boot traceback in §7; recovery runbook in §7 |
 | Instance hours | **750 free hours/month** per workspace | one 24/7 service fits (744 h); a second free service would not |
 | Ephemeral disk | free services have **no persistent disk** — uploads/reports vanish on redeploy | demo uploads are 12 h TTL anyway (demo cleanup); the DB rows flag demo; nothing of record lives on the demo URL |
 | RAM | free instances: **512 MB** | measured above; watch the Render metrics tab on first boot |
@@ -121,7 +121,22 @@ The first live evening surfaced the two failure shapes this document predicts:
 | 2026-08-11 | https://cropmind-demo-api.onrender.com | Render free web (single-process demo image) + free Postgres | first build FAILED (exit 1): inline `#` comment inside a continued ENV line — fixed in `09087a3` and pinned by a test; second build live, `/health/ready` ok | build time ~7 min (torch wheel) |
 | 2026-08-11 | https://cropmind-ai-theta.vercel.app | Vercel Hobby — frontend, `NEXT_PUBLIC_API_URL` baked at build | live; CORS origin opened on Render after the URL existed (`Save and deploy`, no rebuild) | demo DB created 2026-08-11 → free Postgres expires ~2026-09-10 (§2) |
 | 2026-08-11 | same URLs | client hardening shipped (no infrastructure change) | fixed: single network blip during a cold start surfaced as "cannot reach the API" / mislabelled poll failure | client now retries within the published wake window and shows a "waking up" note; e2e smoke below re-run after this fix |
-| 2026-09-28 | https://cropmind-demo-api.onrender.com | Render free web (unchanged infra) | **INSTABILITY OBSERVED, recorded verbatim:** during Phase 13 doc work the API answered `/health` 200 at ~06:18Z (three hits, ~60 ms), then served instant 502s, then hung entirely (no response within 25 s, 5+ min sustained) while smoke-test analyses sat queued; pattern is consistent with the §2 RAM ceiling under boot+queued-worker load (crash/boot loop), not yet dashboard-confirmed | pending operator check of Render Events/Logs for OOM restarts → if confirmed, apply §2 fallback (Starter) or accept free-tier flakiness as documented; Phase 13 README screenshots were therefore captured on a faithfully reproduced local demo stack (same build, DEMO sample model, flags visible) rather than the struggling public instance |
+| 2026-09-28 | https://cropmind-demo-api.onrender.com | Render free web (unchanged infra) | **INSTABILITY OBSERVED, recorded verbatim:** during Phase 13 doc work the API answered `/health` 200 at ~06:18Z (three hits, ~60 ms), then served instant 502s, then hung entirely (no response within 25 s, 5+ min sustained) while smoke-test analyses sat queued | suspected at the time: §2 RAM ceiling under boot+queued-worker load — **superseded by evidence later the same day** (see next row): the true root cause was the expired+deleted free Postgres; corrected here, not erased |
+| 2026-09-28 | https://cropmind-demo-api.onrender.com | Render free web (unchanged infra) + free Postgres | **DEPLOY FAILED** (deploy `dep-dat1ank9v7es73fg28r0`, triggered by push `7c647b0`) — boot traceback verbatim: `sqlalchemy.exc.OperationalError: (psycopg.OperationalError) failed to resolve host 'dpg-d9tf2d6417fc73e8r780-a': [Errno -2] Name or service not known` | root cause: the free Postgres created 2026-08-11 **expired ~2026-09-10 and was deleted after the 14-day grace (~2026-09-24)**; a deleted DB's internal hostname stops resolving, so `alembic`/boot hangs/fails — this also explains the same-day 502/hang wave and the user's stalled smoke test (queued jobs could not be processed). Recovery per runbook below; the demo is **down for real** (not sleeping) until the DB is recreated |
 
 Record each re-deploy as a row. If a deploy changes behaviour (e.g. RAM fallback to a paid
 instance), the change is described here and in the commit message — never only in a dashboard.
+
+### §7 runbook — expired free Postgres (recurs every ~30 days on the free tier)
+
+1. Render dashboard → **New + → PostgreSQL** → **Free** plan, **same region** as the web service →
+   Create Database (reuse `cropmind-demo-db`; add a suffix if the deleted name is still reserved).
+2. When status is **Available**, copy its **Internal Database URL** (`postgresql://…`).
+3. `cropmind-demo-api` → **Environment** → set `DATABASE_URL` to the pasted value →
+   **Save and deploy** (not "Save only").
+4. First boot re-runs `alembic upgrade head` + `app.db.seed` on the **empty** DB: schema +
+   `dataset_sources` return; all prior demo accounts/data are gone — that is the throwaway-by-design
+   contract (§2), never pretend otherwise.
+5. Verify `/health/ready` → 200, then a fresh golden-path smoke (first register on the empty DB
+   becomes ADMIN again, by design). Record the outcome **and the new DB's creation date** (new
+   expiry ≈ creation + 30 days — set a reminder ~day 24) as the next §7 row.
