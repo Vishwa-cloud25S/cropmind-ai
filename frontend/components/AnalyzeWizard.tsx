@@ -97,6 +97,14 @@ export default function AnalyzeWizard(props: WizardDeps) {
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const stoppedRef = useRef(false); // latched: in-flight responses may never overwrite a terminal state
+  // Serial polls only: if the previous request is still in flight (a waking host can
+  // hold a connection for tens of seconds), skip the tick instead of stacking
+  // overlapping requests that race each other — a later success could otherwise
+  // clear the honest wake-up notice while an earlier result is still landing.
+  const pollInFlightRef = useRef<string | null>(null);
+  // The analysis currently allowed to write state; responses from a superseded run
+  // (e.g. a retry started while an old poll was still out) are dropped, never applied.
+  const pollingForRef = useRef<string | null>(null);
   const stopPolling = useCallback(() => {
     stoppedRef.current = true;
     if (pollRef.current) clearInterval(pollRef.current);
@@ -238,10 +246,11 @@ export default function AnalyzeWizard(props: WizardDeps) {
 
   const poll = useCallback(
     async (analysisId: string) => {
-      if (stoppedRef.current) return; // stopped while a previous call was in flight
+      if (stoppedRef.current || pollInFlightRef.current !== null) return; // serial: skip the tick, never stack overlapping polls
+      pollInFlightRef.current = analysisId;
       try {
         const status = await getAnalysisFn(analysisId);
-        if (stoppedRef.current) return; // late response: terminal state already latched
+        if (stoppedRef.current || pollingForRef.current !== analysisId) return; // late response: terminal latched or run superseded
         transientPollMisses.current = 0;
         setWarmingNotice(null);
         setAnalysis(status);
@@ -269,6 +278,10 @@ export default function AnalyzeWizard(props: WizardDeps) {
         stopPolling();
         setServerError(errorMessage(err));
         setStep("failed");
+      } finally {
+        // Release the serial slot only if a fresh run has not already taken it over —
+        // a superseded run's late landing must not open the gate mid-flight.
+        if (pollInFlightRef.current === analysisId) pollInFlightRef.current = null;
       }
     },
     [getAnalysisFn, stopPolling],
@@ -298,6 +311,8 @@ export default function AnalyzeWizard(props: WizardDeps) {
       stopPolling();
       stoppedRef.current = false; // a fresh run re-arms the latch stopPolling just set
       transientPollMisses.current = 0;
+      pollingForRef.current = response.analysis_id; // only this run may write polling state now
+      pollInFlightRef.current = null; // hand the serial-poll slot to the fresh run
       void poll(response.analysis_id);
       pollRef.current = setInterval(() => void poll(response.analysis_id), pollMs);
     } catch (err) {

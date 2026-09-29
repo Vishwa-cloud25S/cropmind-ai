@@ -17,6 +17,20 @@ is presented as current.
 | Static gates | ruff · eslint · tsc --noEmit · next build | — | CI jobs, every push |
 | Integration | docker compose config + full image build | — | CI job `docker`, every push |
 
+**2026-09-29 — serial-poll race found by CI (counts unchanged).** CI run on the
+README-only web edit went red on *"treats a network blip during polling as a
+wake-up"* — reproduced locally as ~8/20 failures. Root cause: `AnalyzeWizard`
+fired interval polls without an in-flight guard, so at test `pollMs` a third,
+immediately-resolving poll could race past the held wake-up request, latch
+COMPLETED and clear the honest *"still holding your analysis"* notice before any
+assertion could observe it (the same overlap was possible in production whenever
+a waking host held a connection longer than the 2 s interval). Fix: polls are now
+serial (a tick while a request is out is skipped), late responses from a
+superseded run are dropped instead of applied, and the same test pins the
+no-overlap invariant — exactly one held request across several intervals, 25/25
+repeat runs green. Suites re-run unchanged: backend 153 (+3 live-deselected),
+ml 113, sim 10, frontend 96 (17 files); ruff/eslint/tsc/next build all green.
+
 ## 2. The critical-flow e2e (NFR-02/NFR-08 style gate)
 
 `backend/tests/test_e2e_critical_flow.py` walks the **one unbroken golden path** through the real

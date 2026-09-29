@@ -171,9 +171,14 @@ describe("AnalyzeWizard", () => {
     await screen.findByText(/still holding your analysis; retrying automatically/);
     expect(screen.queryByText("FAILED")).not.toBeInTheDocument();
 
-    // wait until the suspended-wake poll is in flight (CI timing differs from local —
-    // slower runners may already be a poll-cycle ahead; only the lower bound matters)
-    await waitFor(() => expect(getAnalysisMock.mock.calls.length).toBeGreaterThanOrEqual(2));
+    // the held request is the ONLY poll in flight: with a wake-up holding a connection,
+    // timer ticks must be skipped — never stacked into overlapping requests (a stacked
+    // success could race in and clear the honest wake note before anyone can read it;
+    // that overlap was the CI flake this test now pins against)
+    await waitFor(() => expect(getAnalysisMock.mock.calls.length).toBe(2));
+    await new Promise((resolve) => setTimeout(resolve, 30)); // several intervals at pollMs=5
+    expect(getAnalysisMock.mock.calls.length).toBe(2); // still exactly one held request
+
     releaseWake(analysisStatus("PROCESSING"));
     const link = await screen.findByRole("link", { name: /View the full analysis/ });
     expect(link).toBeInTheDocument();
